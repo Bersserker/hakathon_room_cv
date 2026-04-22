@@ -1,0 +1,111 @@
+# === Python и байт‑код ===
+*.py[cod]
+*$py.class
+__pycache__/
+*.so
+
+# === Виртуальные окружения ===
+venv/
+env/
+.venv/
+.env/
+ENV/
+
+# === Зависимости и пакеты ===
+dist/
+build/
+*.egg-info/
+*.egg
+
+# === Jupyter Notebook ===
+.ipynb_checkpoints
+
+
+# === Данные (основное для ML) ===
+/data/
+
+# Более детальная настройка для data/ (раскомментируйте нужные строки)
+# /data/raw/          # сырые данные (обычно не коммитятся)
+# /data/processed/    # обработанные данные
+# /data/interim/     # промежуточные результаты обработки
+# /data/external/    # внешние данные
+
+# Игнорируем конкретные форматы данных в data/
+/data/*.csv
+/data/*.json
+/data/*.parquet
+/data/*.h5
+/data/*.hdf5
+/data/*.pkl
+/data/*.pickle
+/data/*.npy
+/data/*.npz
+/data/*.zip
+/data/*.tar
+/data/*.gz
+
+# Подпапки с данными любого уровня вложенности
+/data/**/*.csv
+/data/**/*.json
+/data/**/*.parquet
+/data/**/*.h5
+/data/**/*.pkl
+/data/**/*.npy
+
+# === Модели (обычно не коммитятся) ===
+/models/
+models/  # добавлено: игнорируем папку models/ на любом уровне вложенности
+**/models/  # игнорируем все папки models/ в любом месте проекта
+*.pth
+*.pt
+*.h5
+*.hdf5
+*.ckpt
+*.model
+*.pickle
+*.joblib
+
+# === Логи и метрики ===
+*.log
+/logs/
+/runs/  # TensorBoard, Weights & Biases и т. д.
+/mlruns/  # MLflow
+
+# === Тестирование и покрытие ===
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.cache/
+nosetests.xml
+coverage.xml
+*.cover
+
+# === IDE и редакторы ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-*
+
+# === ОС и системные файлы ===
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# === Конфигурационные файлы с секретами ===
+.env
+*.env
+.secrets/
+config.json  # если содержит API‑ключи и т. п.
+# Лучше использовать шаблон config.example.json и игнорировать реальный config.json
+
+# === Временные и кэш‑файлы ===
+*.tmp
+*.temp
+.pytest_cache/
+.mypy_cache/
