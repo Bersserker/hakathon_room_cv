@@ -1,62 +1,186 @@
-Конечно! Вот готовый файл `README.md` для вашего проекта:
+# Проект классификации типов помещений
 
-```markdown
-# Проект классификации типов помещений (Room Type Classification)
+Набор ноутбуков и экспериментов для классификации изображений помещений с использованием PyTorch и предобученных моделей.
 
-Нейронная сеть для классификации изображений по типам помещений с использованием PyTorch и предобученных моделей.
+## Зависимости
 
-## Описание проекта
+Зависимости описаны в `pyproject.toml` и совместимы с `uv` и `poetry`.
 
-Модель определяет тип помещения по фотографии (например: гостиная, кухня, ванная, офис и т. д.). Использует архитектуру ConvNeXt и трансферное обучение на предобученных весах.
-
-## Технологии и библиотеки
-
-* **Python 3** — язык программирования.
-* **PyTorch** — фреймворк глубокого обучения.
-* **torchvision** — утилиты для компьютерного зрения.
-* **timm** (PyTorch Image Models) — доступ к предобученным моделям.
-* **pandas** — работа с табличными данными.
-* **scikit‑learn** — метрики качества.
-* **Pillow** — загрузка и обработка изображений.
-* **matplotlib** — визуализация результатов.
-
-## Установка и настройка
-
-### Шаг 1. Создание виртуального окружения
+Базовая установка:
 
 ```bash
-python3 -m venv venv
+uv sync
 ```
 
-Создаёт изолированное виртуальное окружение в папке `venv`.
-
-### Шаг 2. Активация виртуального окружения
-
-**Для Linux/macOS:**
+CUDA-стек PyTorch 12.6 для Linux/Windows:
 
 ```bash
-source venv/bin/activate
+uv sync --extra cuda
 ```
 
-**Для Windows:**
-
-```cmd
-venv\Scripts\activate
-```
-
-После активации в начале строки приглашения командной строки появится `(venv)`.
-
-### Шаг 3. Установка зависимостей из файла `requirements.txt`
+Альтернатива через Poetry:
 
 ```bash
-pip install -r requirements.txt
+poetry install
 ```
 
-Устанавливает все необходимые библиотеки для проекта.
-
-### Шаг 4. Установка PyTorch с поддержкой CUDA 12.1
+CUDA-стек через Poetry:
 
 ```bash
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+poetry install -E cuda
 ```
-Эта команда устанавливает оптимизированные версии библиотек PyTorch с поддержкой вычислений на GPU (CUDA 12.1).
+
+## Запуск ноутбуков
+
+Через `uv`:
+
+```bash
+uv run jupyter notebook
+```
+
+Через `poetry`:
+
+```bash
+poetry run jupyter notebook
+```
+
+## Docker
+
+Минимальный Docker-сценарий в проекте рассчитан на локальную разработку и запуск Jupyter Notebook в CPU-контейнере.
+
+### Установка Docker
+
+1. Установите Docker Desktop для macOS/Windows или Docker Engine + Docker Compose Plugin для Linux.
+2. Убедитесь, что команды доступны:
+
+```bash
+docker --version
+docker compose version
+```
+
+### Сборка и запуск
+
+Собрать и запустить контейнер:
+
+```bash
+docker compose up --build
+```
+
+После запуска Jupyter будет доступен по адресу:
+
+```text
+http://localhost:8888/tree?token=room-cv
+```
+
+Запуск в фоне:
+
+```bash
+docker compose up -d --build
+```
+
+Остановить проект:
+
+```bash
+docker compose down
+```
+
+Открыть shell внутри контейнера:
+
+```bash
+docker compose exec notebook sh
+```
+
+Чтобы выйти из shell внутри контейнера и вернуться в терминал хоста:
+
+  - введите exit
+  - или нажмите Ctrl+D
+
+Примечания:
+
+- В контейнер монтируется текущая директория проекта, поэтому изменения в ноутбуках и коде сразу видны внутри Docker.
+- Dockerfile ставит CPU-версии `torch`, `torchvision` и `torchaudio`, чтобы проект запускался без CUDA-инфраструктуры.
+- Для GPU-режима нужен отдельный Docker-стек с `nvidia-container-toolkit`.
+
+### Docker + GPU (CUDA)
+
+GPU-вариант запуска использует отдельные файлы `Dockerfile.gpu` и `docker-compose.gpu.yml`.
+
+Требования к хосту:
+
+1. Linux с NVIDIA GPU и установленным NVIDIA Driver + NVIDIA Container Toolkit.
+2. Или Docker Desktop на Windows с backend WSL2 и включённой GPU support.
+3. Для macOS этот NVIDIA-вариант не подходит.
+
+Минимальная подготовка Linux-хоста:
+
+```bash
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+```
+
+Быстрая проверка, что Docker видит GPU:
+
+```bash
+docker run --rm --gpus all nvidia/cuda:12.9.0-base-ubuntu22.04 nvidia-smi
+```
+
+Сборка и запуск проекта с GPU:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
+```
+
+Запуск в фоне:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+```
+
+Проверка CUDA внутри контейнера проекта:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml run --rm notebook \
+  uv run python -c "import torch; print(torch.cuda.is_available())"
+```
+
+Примечания:
+
+- В GPU-образе ставятся зависимости из `uv sync --extra cuda`, то есть используются CUDA-колёса PyTorch из `pyproject.toml`.
+- В `docker-compose.gpu.yml` доступ к GPU описан через `devices` reservation, как рекомендует Docker Compose.
+- Если нужен конкретный GPU, вместо `count: all` можно перейти на `device_ids`.
+
+## Структура проекта
+
+```text
+.
+├── artifacts/
+│   ├── checkpoints/
+│   └── logs/
+├── configs/
+├── data/
+│   ├── raw/
+│   ├── interim/
+│   └── processed/
+├── notebooks/
+├── reports/
+│   └── figures/
+├── scripts/
+├── src/
+│   ├── datasets/
+│   ├── models/
+│   ├── training/
+│   ├── inference/
+│   └── utils/
+└── tests/
+```
+
+Коротко по папкам:
+
+- `src/` — основной код проекта: загрузка данных, модели, обучение, инференс и утилиты.
+- `configs/` — конфигурации экспериментов и параметров запуска.
+- `data/` — данные на разных стадиях подготовки: сырые, промежуточные и обработанные.
+- `notebooks/` — исследовательские ноутбуки и быстрые эксперименты.
+- `scripts/` — вспомогательные скрипты для запуска пайплайнов и подготовки данных.
+- `artifacts/` — веса моделей, чекпоинты и логи обучения.
+- `reports/` — графики, отчёты и итоговые визуализации.
+- `tests/` — тесты для проверки ключевой логики проекта.
