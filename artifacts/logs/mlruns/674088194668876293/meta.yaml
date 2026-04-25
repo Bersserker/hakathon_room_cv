@@ -1,0 +1,8 @@
+artifact_location: /home/alex/Yandex.Disk/mystuff/MIFI/Hakaton_2_semestr/hakathon_avito_CV2/hakathon_room_cv/artifacts/logs/mlruns/674088194668876293
+creation_time: 1777139751536
+experiment_id: '674088194668876293'
+last_update_time: 1777139751536
+lifecycle_stage: active
+name: room_type_image_baseline
+trace_location: null
+workspace: default
