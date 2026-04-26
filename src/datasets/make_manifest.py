@@ -10,7 +10,7 @@ BASE_DIR = Path("data/raw/room_type")
 SPLITS  = {
     "train":("train_df.csv","train_images"),
     "val":("val_df.csv","val_images"),
-    "train":("test_df.csv","test_images")
+    "test":("test_df.csv","test_images")
 }
 
 OUT_PATH = Path("data/processed/data_manifest.parquet")
@@ -55,11 +55,7 @@ def check_image(path:Path, image_id:str, split:str ):
 
     return result
 
-def process_split(split, csv_name, folder_name):
-    df = pd.read_csv(BASE_DIR / csv_name)
-
-    # ⚠️ ВАЖНО: проверь имя колонки!
-    #image_col = "image_id_ext" if "image_id_ext" in df.columns else df.columns[0]
+def process_split(split, df, folder_name):
     image_col = "image_id_ext" 
     folder = BASE_DIR / folder_name
 
@@ -72,36 +68,16 @@ def process_split(split, csv_name, folder_name):
 
     return rows
 
-def main():
-    all_rows = []
-
-    for split, (csv_name, folder_name) in SPLITS.items():
-        print(f"Processing {split}...")
-        all_rows.extend(process_split(split, csv_name, folder_name))
-
-    manifest = pd.DataFrame(all_rows)
-
-    OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-    manifest.to_parquet(OUT_PATH, index=False)
-
-    total = len(manifest)
-
+def build_report(manifest, max_rows=50):
     missing_df = manifest[manifest["status"] == "missing"]
     corrupted_df = manifest[manifest["status"] == "corrupted"]
     ok_df = manifest[manifest["status"] == "ok"]
 
-    missing_df.to_csv("reports/missing_files.csv", index=False)
-    corrupted_df.to_csv("reports/corrupted_files.csv", index=False)
-
-    MAX_ROWS = 50
-
-    def format_problem_list(df, title):
+    def format_block(df, title):
         if len(df) == 0:
-            return f"\n## {title}\n\nНет\n"
+            return f"\n## {title}\nНет\n"
 
-        sample = df.head(MAX_ROWS)
+        sample = df.head(max_rows)
 
         lines = "\n".join(
             sample[["image_id_ext", "local_path", "error"]]
@@ -113,41 +89,84 @@ def main():
             )
         )
 
-        return f"""
-## {title} — первые {min(len(df), MAX_ROWS)} из {len(df)}
+        return f"\n## {title} ({len(df)})\n\n{lines}\n"
 
-{lines}
-"""
+    total = len(manifest)
 
     report = f"""# Data integrity report
 
-## Summary
-
-| Metric | Value |
-|---|---:|
-| Total | {total} |
-| OK | {len(ok_df)} |
-| Missing | {len(missing_df)} ({len(missing_df) / total:.2%}) |
-| Corrupted | {len(corrupted_df)} ({len(corrupted_df) / total:.2%}) |
-
-## Artifacts
-
-- `data/processed/data_manifest.parquet`
-- `reports/missing_files.csv`
-- `reports/corrupted_files.csv`
-
-{format_problem_list(missing_df, "Missing files")}
-
-{format_problem_list(corrupted_df, "Corrupted files")}
+Total: {total}
+OK: {len(ok_df)}
+Missing: {len(missing_df)} ({len(missing_df)/total:.2%})
+Corrupted: {len(corrupted_df)} ({len(corrupted_df)/total:.2%})
 """
 
+    report += format_block(missing_df, "Missing")
+    report += format_block(corrupted_df, "Corrupted")
+
+    return report
+
+def main():
+    all_rows = []
+    expected_total = 0
+    processed_splits = set()
+
+    for split, (csv_name, folder_name) in SPLITS.items():
+        print(f"Processing {split}...")
+
+        csv_path = BASE_DIR / csv_name
+        df = pd.read_csv(csv_path)
+
+        # считаем ожидаемое количество строк
+        expected_total += len(df)
+        processed_splits.add(split)
+
+        # обрабатываем
+        rows = process_split(split, df, folder_name)
+        all_rows.extend(rows)
+
+    # 🔍 Проверка split'ов
+    expected_splits = set(SPLITS.keys())
+    if processed_splits != expected_splits:
+        raise ValueError(
+            f"Split mismatch! Expected {expected_splits}, got {processed_splits}"
+        )
+
+    # 🔍 Проверка количества строк
+    if len(all_rows) != expected_total:
+        raise ValueError(
+            f"Row count mismatch! Expected {expected_total}, got {len(all_rows)}"
+        )
+
+    # создаём manifest
+    manifest = pd.DataFrame(all_rows)
+
+    OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    manifest.to_parquet(OUT_PATH, index=False)
+
+    # разделяем статусы
+    missing_df = manifest[manifest["status"] == "missing"]
+    corrupted_df = manifest[manifest["status"] == "corrupted"]
+
+    # сохраняем списки
+    missing_df.to_csv("reports/missing_files.csv", index=False)
+    corrupted_df.to_csv("reports/corrupted_files.csv", index=False)
+
+    # генерируем отчёт
+    report = build_report(manifest)
     REPORT_PATH.write_text(report, encoding="utf-8")
 
-    print("Done!")
+    # финальный лог
+    print("\n=== DONE ===")
+    print(f"Expected rows: {expected_total}")
+    print(f"Manifest rows: {len(manifest)}")
+    print(f"Splits: {sorted(processed_splits)}")
+    print(f"Missing: {len(missing_df)}")
+    print(f"Corrupted: {len(corrupted_df)}")
     print(f"Manifest → {OUT_PATH}")
     print(f"Report → {REPORT_PATH}")
-    print(f"Missing list → reports/missing_files.csv")
-    print(f"Corrupted list → reports/corrupted_files.csv")
 
 
 if __name__ == "__main__":

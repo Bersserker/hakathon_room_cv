@@ -1,23 +1,35 @@
 # Data integrity report
 
-## Summary
+Total: 53065
+OK: 52830
+Missing: 235 (0.44%)
+Corrupted: 0 (0.00%)
 
-| Metric | Value |
-|---|---:|
-| Total | 48503 |
-| OK | 48268 |
-| Missing | 235 (0.48%) |
-| Corrupted | 0 (0.00%) |
+## Missing (235)
 
-## Artifacts
-
-- `data/processed/data_manifest.parquet`
-- `reports/missing_files.csv`
-- `reports/corrupted_files.csv`
-
-
-## Missing files — первые 50 из 235
-
+- 15494054561.jpg | data/raw/room_type/val_images/val_images/15494054561.jpg | file not found
+- 15579494055.jpg | data/raw/room_type/val_images/val_images/15579494055.jpg | file not found
+- 14419928610.jpg | data/raw/room_type/val_images/val_images/14419928610.jpg | file not found
+- 15332754747.jpg | data/raw/room_type/val_images/val_images/15332754747.jpg | file not found
+- 14417245929.jpg | data/raw/room_type/val_images/val_images/14417245929.jpg | file not found
+- 15620932559.jpg | data/raw/room_type/val_images/val_images/15620932559.jpg | file not found
+- 15662789316.jpg | data/raw/room_type/val_images/val_images/15662789316.jpg | file not found
+- 15857997017.jpg | data/raw/room_type/val_images/val_images/15857997017.jpg | file not found
+- 14409972018.jpg | data/raw/room_type/val_images/val_images/14409972018.jpg | file not found
+- 15429903701.jpg | data/raw/room_type/val_images/val_images/15429903701.jpg | file not found
+- 15701823236.jpg | data/raw/room_type/val_images/val_images/15701823236.jpg | file not found
+- 15593681262.jpg | data/raw/room_type/val_images/val_images/15593681262.jpg | file not found
+- 15742676630.jpg | data/raw/room_type/val_images/val_images/15742676630.jpg | file not found
+- 15253848649.jpg | data/raw/room_type/val_images/val_images/15253848649.jpg | file not found
+- 15329777063.jpg | data/raw/room_type/val_images/val_images/15329777063.jpg | file not found
+- 15536612047.jpg | data/raw/room_type/val_images/val_images/15536612047.jpg | file not found
+- 15497248641.jpg | data/raw/room_type/val_images/val_images/15497248641.jpg | file not found
+- 15809802932.jpg | data/raw/room_type/val_images/val_images/15809802932.jpg | file not found
+- 15258622842.jpg | data/raw/room_type/val_images/val_images/15258622842.jpg | file not found
+- 14406137568.jpg | data/raw/room_type/val_images/val_images/14406137568.jpg | file not found
+- 14138643172.jpg | data/raw/room_type/val_images/val_images/14138643172.jpg | file not found
+- 15846187212.jpg | data/raw/room_type/val_images/val_images/15846187212.jpg | file not found
+- 15117496294.jpg | data/raw/room_type/val_images/val_images/15117496294.jpg | file not found
 - 14227558475.jpg | data/raw/room_type/test_images/test_images/14227558475.jpg | file not found
 - 15488970039.jpg | data/raw/room_type/test_images/test_images/15488970039.jpg | file not found
 - 14451523201.jpg | data/raw/room_type/test_images/test_images/14451523201.jpg | file not found
@@ -45,33 +57,6 @@
 - 14411796180.jpg | data/raw/room_type/test_images/test_images/14411796180.jpg | file not found
 - 15429860421.jpg | data/raw/room_type/test_images/test_images/15429860421.jpg | file not found
 - 15251435290.jpg | data/raw/room_type/test_images/test_images/15251435290.jpg | file not found
-- 15494529853.jpg | data/raw/room_type/test_images/test_images/15494529853.jpg | file not found
-- 14474803358.jpg | data/raw/room_type/test_images/test_images/14474803358.jpg | file not found
-- 15413044114.jpg | data/raw/room_type/test_images/test_images/15413044114.jpg | file not found
-- 14594029315.jpg | data/raw/room_type/test_images/test_images/14594029315.jpg | file not found
-- 15491311013.jpg | data/raw/room_type/test_images/test_images/15491311013.jpg | file not found
-- 15140507587.jpg | data/raw/room_type/test_images/test_images/15140507587.jpg | file not found
-- 14004441493.jpg | data/raw/room_type/test_images/test_images/14004441493.jpg | file not found
-- 15870709687.jpg | data/raw/room_type/test_images/test_images/15870709687.jpg | file not found
-- 15873723195.jpg | data/raw/room_type/test_images/test_images/15873723195.jpg | file not found
-- 15574808119.jpg | data/raw/room_type/test_images/test_images/15574808119.jpg | file not found
-- 15018088600.jpg | data/raw/room_type/test_images/test_images/15018088600.jpg | file not found
-- 15344430004.jpg | data/raw/room_type/test_images/test_images/15344430004.jpg | file not found
-- 14401430898.jpg | data/raw/room_type/test_images/test_images/14401430898.jpg | file not found
-- 14025624359.jpg | data/raw/room_type/test_images/test_images/14025624359.jpg | file not found
-- 15438488151.jpg | data/raw/room_type/test_images/test_images/15438488151.jpg | file not found
-- 15394038568.jpg | data/raw/room_type/test_images/test_images/15394038568.jpg | file not found
-- 15569847513.jpg | data/raw/room_type/test_images/test_images/15569847513.jpg | file not found
-- 15424113406.jpg | data/raw/room_type/test_images/test_images/15424113406.jpg | file not found
-- 15494647605.jpg | data/raw/room_type/test_images/test_images/15494647605.jpg | file not found
-- 15809187914.jpg | data/raw/room_type/test_images/test_images/15809187914.jpg | file not found
-- 15885242205.jpg | data/raw/room_type/test_images/test_images/15885242205.jpg | file not found
-- 15279631915.jpg | data/raw/room_type/test_images/test_images/15279631915.jpg | file not found
-- 14559975713.jpg | data/raw/room_type/test_images/test_images/14559975713.jpg | file not found
 
-
-
-## Corrupted files
-
+## Corrupted
 Нет
-
