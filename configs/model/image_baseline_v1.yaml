@@ -1,12 +1,11 @@
 data:
-  images_train_dir: data/room_type/train_images/train_images
-  images_val_dir: data/room_type/val_images/val_images
-  images_test_dir: data/room_type/test_images/test_images
-  images_csv_path: data/room_type
-  train_df: data/room_type/train_df.csv
-  test_df: data/room_type/test_df.csv
-  val_df: data/room_type/val_df.csv
-  splits_dir: data/room_type/splits_v1
+  images_train_dir: data/raw/room_type/train_images/train_images
+  images_val_dir: data/raw/room_type/val_images/val_images
+  images_test_dir: data/raw/room_type/test_images/test_images
+  images_csv_path: data/raw/room_type
+  train_df: data/raw/room_type/train_df.csv
+  test_df: data/raw/room_type/test_df.csv
+  val_df: data//raw/room_type/val_df.csv
   image_col: image_id_ext
   label_col: result
   num_classes: 20
