@@ -28,6 +28,7 @@ dependencies = [
   "notebook>=7.0",
   "ipykernel>=6.29",
   "transformers>=4.25.0",
+  "mlflow>=3.11.1",
 ]
 
 [project.optional-dependencies]
