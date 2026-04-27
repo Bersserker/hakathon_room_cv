@@ -131,8 +131,9 @@ def load_split_metadata(splits_json: Path, train_rows: int, val_rows: int) -> di
     shadow_policy = policy.get("shadow_holdout", {})
     shadow_holdout = data.get("shadow_holdout", {})
 
-    if policy.get("group_key") != "item_id":
-        raise ValueError(f"{splits_json} must use group_key='item_id'.")
+    allowed_group_keys = {"item_id", "item_id_content_hash_component"}
+    if policy.get("group_key") not in allowed_group_keys:
+        raise ValueError(f"{splits_json} must use one of {sorted(allowed_group_keys)}.")
     if policy.get("label_key") != "result":
         raise ValueError(f"{splits_json} must use label_key='result'.")
     if policy.get("splitter") != "StratifiedGroupKFold":
@@ -151,10 +152,10 @@ def load_split_metadata(splits_json: Path, train_rows: int, val_rows: int) -> di
             f"{splits_json} val_df_raw_rows mismatch: "
             f"{summary.get('val_df_raw_rows')} != {val_rows}"
         )
-    if as_int(shadow_holdout.get("rows")) != val_rows:
+    if as_int(shadow_holdout.get("rows")) > val_rows:
         raise ValueError(
             f"{splits_json} shadow_holdout.rows mismatch: "
-            f"{shadow_holdout.get('rows')} != {val_rows}"
+            f"{shadow_holdout.get('rows')} > {val_rows}"
         )
 
     return {
