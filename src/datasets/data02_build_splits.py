@@ -22,6 +22,25 @@ DEFAULT_REPORT_MD = Path("reports/leakage_report.md")
 SEED = 26042026
 
 
+class UnionFind:
+    """Keeps fold groups connected by item_id or content_hash."""
+
+    def __init__(self, size: int) -> None:
+        self.parent = list(range(size))
+
+    def find(self, index: int) -> int:
+        while self.parent[index] != index:
+            self.parent[index] = self.parent[self.parent[index]]
+            index = self.parent[index]
+        return index
+
+    def union(self, left: int, right: int) -> None:
+        left_root = self.find(left)
+        right_root = self.find(right)
+        if left_root != right_root:
+            self.parent[right_root] = left_root
+
+
 def parse_args() -> argparse.Namespace:
     """Собирает аргументы командной строки для запуска DATA-02 pipeline.
 
@@ -53,6 +72,19 @@ def python_value(value: Any) -> Any:
         except ValueError:
             pass
     return value
+
+
+def normalize_image_id_ext(value: Any) -> str:
+    """Приводит image id к имени файла из manifest.
+
+    Пояснение: CSV хранит `16028356846`, manifest хранит `16028356846.jpg`.
+    """
+    if pd.isna(value):
+        return ""
+    text = str(value)
+    if text.endswith(".0"):
+        text = text[:-2]
+    return text if Path(text).suffix else f"{text}.jpg"
 
 
 def iso_utc_from_mtime(paths: list[Path]) -> str:
@@ -93,8 +125,11 @@ def load_manifest(path: Path) -> tuple[pd.DataFrame, str | None, int]:
         hash_source_column = "hash"
     elif "checksum" in manifest.columns:
         hash_source_column = "checksum"
+    elif "hash_sha256" in manifest.columns:
+        hash_source_column = "hash_sha256"
 
     manifest = manifest.copy()
+    manifest["image_id_ext"] = manifest["image_id_ext"].map(normalize_image_id_ext)
     manifest["status"] = (
         manifest["status"].astype("string").str.lower().fillna("missing_in_manifest")
     )
@@ -129,6 +164,9 @@ def merge_manifest(df: pd.DataFrame, manifest: pd.DataFrame | None) -> pd.DataFr
 
     Пояснение: приклеивает к строкам картинки их статус, размер, путь и хэш.
     """
+    df = df.copy()
+    df["image_id_ext"] = df["image_id_ext"].map(normalize_image_id_ext)
+
     if manifest is None:
         return add_manifest_placeholders(df)
 
@@ -246,9 +284,10 @@ def cross_fold_hash_leakage(assignments: pd.DataFrame) -> dict[str, Any]:
 
 
 def build_fold_assignments(train_df: pd.DataFrame, n_folds: int) -> pd.DataFrame:
-    """Строит fold-назначения через StratifiedGroupKFold по item_id и result.
+    """Строит fold-назначения через StratifiedGroupKFold по item_id/hash и result.
 
-    Пояснение: делит train на folds так, чтобы один item_id не попадал в разные части.
+    Пояснение: делит train так, чтобы один item_id или одинаковый content_hash
+    не попадали в разные folds.
     """
     assignments = (
         train_df.sort_values(["item_id", "image_id_ext"], kind="stable")
@@ -257,12 +296,15 @@ def build_fold_assignments(train_df: pd.DataFrame, n_folds: int) -> pd.DataFrame
     )
     assignments["fold"] = -1
 
+    groups = build_split_groups(assignments)
+    assignments["split_group"] = groups
+
     splitter = StratifiedGroupKFold(n_splits=n_folds, shuffle=True, random_state=SEED)
     for fold_index, (_, valid_index) in enumerate(
         splitter.split(
             assignments[["image_id_ext"]],
             assignments["result"],
-            groups=assignments["item_id"],
+            groups=assignments["split_group"],
         )
     ):
         assignments.loc[valid_index, "fold"] = fold_index
@@ -276,7 +318,35 @@ def build_fold_assignments(train_df: pd.DataFrame, n_folds: int) -> pd.DataFrame
             "Group leakage detected: some item_id values span multiple folds."
         )
 
+    if "content_hash" in assignments.columns:
+        hash_df = assignments.loc[assignments["content_hash"].notna()].copy()
+        hash_fold_counts = hash_df.groupby("content_hash")["fold"].nunique()
+        if not bool((hash_fold_counts <= 1).all()):
+            raise RuntimeError(
+                "Hash leakage detected: some content_hash values span multiple folds."
+            )
+
     return assignments
+
+
+def build_split_groups(assignments: pd.DataFrame) -> list[str]:
+    """Собирает connected components по item_id и content_hash."""
+    union_find = UnionFind(len(assignments))
+
+    for column in ["item_id", "content_hash"]:
+        if column not in assignments.columns:
+            continue
+        seen: dict[Any, int] = {}
+        for index, value in assignments[column].items():
+            if pd.isna(value):
+                continue
+            key = python_value(value)
+            if key in seen:
+                union_find.union(index, seen[key])
+            else:
+                seen[key] = index
+
+    return [f"group_{union_find.find(index)}" for index in range(len(assignments))]
 
 
 def class_distribution_table(assignments: pd.DataFrame, n_folds: int) -> pd.DataFrame:
@@ -634,14 +704,15 @@ def main() -> None:
         },
         "policy": {
             "n_folds": args.n_folds,
-            "group_key": "item_id",
+            "group_key": "item_id_content_hash_component",
+            "base_group_keys": ["item_id", "content_hash"],
             "label_key": "result",
             "splitter": "StratifiedGroupKFold",
             # TODO: use global constant
             "seed": SEED,
             "duplicate_policy": {
                 "image_id_ext": "drop_duplicates_keep_first_before_split",
-                "content_hash": "report_only_when_manifest_available",
+                "content_hash": "group_connected_components_before_split",
             },
             "shadow_holdout": {
                 "status": "separate_shadow_holdout",

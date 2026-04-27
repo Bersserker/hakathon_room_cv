@@ -2,14 +2,14 @@
 
 ## Inputs and policy
 - version: `splits_v1`
-- timestamp_utc: `2026-04-23T18:29:17Z`
+- timestamp_utc: `2026-04-26T16:19:30Z`
 - train_csv: `data/raw/train_df.csv`
 - val_csv: `data/raw/val_df.csv`
 - n_folds: `5`
-- group_key: `item_id`
+- group_key: `item_id_content_hash_component`
 - splitter: `StratifiedGroupKFold`
 - duplicate_policy_image_id_ext: `drop_duplicates_keep_first_before_split`
-- duplicate_policy_hash: `report_only_when_manifest_available`
+- duplicate_policy_hash: `group_connected_components_before_split`
 - val_df_status: `separate_shadow_holdout`
 - val_df_reason: safe default: keep original val_df outside train k-folds to avoid tuning leakage
 
@@ -24,57 +24,59 @@
 | dataset | removed_image_id_ext_rows | duplicate_image_url_rows | rows_after_filters |
 | --- | --- | --- | --- |
 | train_df | 0 | 0 | 4562 |
-| val_df | 0 | 0 | 500 |
+| val_df | 0 | 0 | 477 |
 
 ## Manifest integration
-- used_manifest: `False`
+- used_manifest: `True`
 - manifest_path: `data/processed/data_manifest.parquet`
-- manifest_exists: `False`
-- manifest_hash_source_column: `None`
-- hash/status checks: `pending until data/processed/data_manifest.parquet exists`
+- manifest_exists: `True`
+- manifest_hash_source_column: `hash_sha256`
+- manifest_duplicate_image_id_ext_rows: `0`
+- train_status_counts: `{'ok': 4562}`
+- val_status_counts: `{'missing': 23, 'ok': 477}`
+- hash_overlap_train_vs_shadow_holdout: `0`
+- hash_overlap_across_folds: `0`
 
 ## Shadow holdout
 - `val_df` fixed as `separate_shadow_holdout`.
-- rows_in_shadow_holdout_after_filters: `500`
-- item_groups_in_shadow_holdout_after_filters: `380`
+- rows_in_shadow_holdout_after_filters: `477`
+- item_groups_in_shadow_holdout_after_filters: `357`
 
 ## Fold summary
 | fold | validation_rows | validation_item_groups | training_rows | training_item_groups |
 | --- | --- | --- | --- | --- |
-| 0 | 912 | 845 | 3650 | 3385 |
-| 1 | 913 | 846 | 3649 | 3384 |
-| 2 | 913 | 848 | 3649 | 3382 |
-| 3 | 912 | 846 | 3650 | 3384 |
-| 4 | 912 | 845 | 3650 | 3385 |
+| 0 | 912 | 844 | 3650 | 3386 |
+| 1 | 912 | 845 | 3650 | 3385 |
+| 2 | 912 | 843 | 3650 | 3387 |
+| 3 | 914 | 848 | 3648 | 3382 |
+| 4 | 912 | 850 | 3650 | 3380 |
 
 ## Class distribution by fold
 | result | label | fold_0 | fold_1 | fold_2 | fold_3 | fold_4 | total |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 0 | кухня / столовая | 50 | 49 | 50 | 49 | 50 | 248 |
-| 1 | кухня-гостиная | 40 | 40 | 40 | 39 | 40 | 199 |
-| 2 | универсальная комната | 49 | 49 | 50 | 50 | 49 | 247 |
+| 0 | кухня / столовая | 50 | 50 | 49 | 50 | 49 | 248 |
+| 1 | кухня-гостиная | 40 | 40 | 39 | 40 | 40 | 199 |
+| 2 | универсальная комната | 50 | 49 | 49 | 50 | 49 | 247 |
 | 3 | гостиная | 50 | 50 | 50 | 50 | 49 | 249 |
-| 4 | спальня | 51 | 50 | 50 | 50 | 50 | 251 |
-| 5 | кабинет | 14 | 15 | 15 | 15 | 15 | 74 |
+| 4 | спальня | 50 | 50 | 51 | 50 | 50 | 251 |
+| 5 | кабинет | 15 | 14 | 15 | 15 | 15 | 74 |
 | 6 | детская | 43 | 43 | 43 | 43 | 43 | 215 |
 | 7 | ванная комната | 51 | 51 | 51 | 51 | 51 | 255 |
 | 8 | туалет | 51 | 51 | 51 | 51 | 51 | 255 |
-| 9 | совмещенный санузел | 51 | 51 | 51 | 50 | 51 | 254 |
+| 9 | совмещенный санузел | 50 | 51 | 51 | 51 | 51 | 254 |
 | 10 | коридор / прихожая | 50 | 50 | 50 | 50 | 50 | 250 |
-| 11 | гардеробная / кладовая / постирочная | 12 | 12 | 12 | 12 | 11 | 59 |
-| 12 | балкон / лоджия | 50 | 50 | 49 | 50 | 50 | 249 |
+| 11 | гардеробная / кладовая / постирочная | 11 | 12 | 12 | 12 | 12 | 59 |
+| 12 | балкон / лоджия | 50 | 49 | 50 | 50 | 50 | 249 |
 | 13 | вид из окна / с балкона | 46 | 46 | 46 | 46 | 47 | 231 |
-| 14 | дом снаружи / двор | 49 | 50 | 50 | 50 | 50 | 249 |
-| 15 | подъезд / лестничная площадка | 51 | 50 | 50 | 51 | 51 | 253 |
+| 14 | дом снаружи / двор | 50 | 50 | 50 | 50 | 49 | 249 |
+| 15 | подъезд / лестничная площадка | 51 | 51 | 50 | 51 | 50 | 253 |
 | 16 | другое | 54 | 54 | 54 | 54 | 54 | 270 |
 | 17 | предметы интерьера / быт.техника | 50 | 50 | 50 | 50 | 50 | 250 |
-| 18 | не могу дать ответ / не ясно | 50 | 51 | 50 | 50 | 50 | 251 |
-| 19 | комната без мебели | 50 | 51 | 51 | 51 | 50 | 253 |
+| 18 | не могу дать ответ / не ясно | 50 | 50 | 50 | 50 | 51 | 251 |
+| 19 | комната без мебели | 50 | 51 | 51 | 50 | 51 | 253 |
 
 ## Pending checks
-- merge `data/processed/data_manifest.parquet` to add `local_path`, `width`, `height`, `status`, `content_hash`
-- exclude non-`ok` manifest statuses from train pool and shadow holdout
-- run content-hash leakage checks across train folds and between train pool vs shadow holdout
+- none
 
 ## Re-run
 ```bash

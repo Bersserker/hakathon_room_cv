@@ -109,3 +109,6 @@ config.json  # если содержит API‑ключи и т. п.
 *.temp
 .pytest_cache/
 .mypy_cache/
+
+
+artifacts/logs/*

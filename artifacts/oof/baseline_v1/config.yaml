@@ -14,15 +14,13 @@ data:
   num_classes: 20
   image_size: 224
   resize_size: 256
-
 model:
   backbone: convnext_tiny.in12k_ft_in1k
   pretrained: true
   whitelist:
-    - convnext_tiny.in12k_ft_in1k
-    - efficientnet_b0
-    - resnet50
-
+  - convnext_tiny.in12k_ft_in1k
+  - efficientnet_b0
+  - resnet50
 train:
   epochs: 3
   batch_size: 16
@@ -31,22 +29,18 @@ train:
   weight_decay: 0.01
   amp: true
   seed: 42
-
 debug:
   enabled: false
   train_samples: 64
   val_samples: 32
   epochs: 1
   num_workers: 0
-
 checkpoint:
   dir: artifacts/checkpoints
   monitor: val_macro_f1
-
 artifacts:
   oof_dir: artifacts/oof/baseline_v1
   report_path: reports/baseline_metrics_v1.md
-
 experiment:
   version: v01
   loss: ce
@@ -55,7 +49,6 @@ experiment:
   weak_label_flag: false
   feature_flags: img
   tta_flag: false
-
 mlflow:
   tracking_uri: sqlite:///artifacts/logs/mlflow.db
   experiment_name: room_type_image_baseline
