@@ -249,14 +249,10 @@ def main():
 
     expected_splits = set(SPLITS.keys())
     if processed_splits != expected_splits:
-        raise ValueError(
-            f"Split mismatch! Expected {expected_splits}, got {processed_splits}"
-        )
+        raise ValueError(f"Split mismatch! Expected {expected_splits}, got {processed_splits}")
 
     if len(all_rows) != expected_total:
-        raise ValueError(
-            f"Row count mismatch! Expected {expected_total}, got {len(all_rows)}"
-        )
+        raise ValueError(f"Row count mismatch! Expected {expected_total}, got {len(all_rows)}")
 
     manifest = pd.DataFrame(all_rows, columns=MANIFEST_COLUMNS)
 

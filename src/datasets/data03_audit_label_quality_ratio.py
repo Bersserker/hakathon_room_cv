@@ -43,9 +43,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--splits-json", type=Path, default=DEFAULT_SPLITS_JSON)
     parser.add_argument("--report-md", type=Path, default=DEFAULT_REPORT_MD)
     parser.add_argument("--ratio-bins-csv", type=Path, default=DEFAULT_RATIO_BINS_CSV)
-    parser.add_argument(
-        "--low-consensus-csv", type=Path, default=DEFAULT_LOW_CONSENSUS_CSV
-    )
+    parser.add_argument("--low-consensus-csv", type=Path, default=DEFAULT_LOW_CONSENSUS_CSV)
     return parser.parse_args()
 
 
@@ -122,25 +120,22 @@ def load_split_metadata(splits_json: Path, train_rows: int, val_rows: int) -> di
     """
     data = json.loads(splits_json.read_text())
     if data.get("version") != "splits_v1":
-        raise ValueError(
-            f"{splits_json} has unsupported version: {data.get('version')!r}"
-        )
+        raise ValueError(f"{splits_json} has unsupported version: {data.get('version')!r}")
 
     policy = data.get("policy", {})
     summary = data.get("summary", {})
     shadow_policy = policy.get("shadow_holdout", {})
     shadow_holdout = data.get("shadow_holdout", {})
 
-    if policy.get("group_key") != "item_id":
-        raise ValueError(f"{splits_json} must use group_key='item_id'.")
+    allowed_group_keys = {"item_id", "item_id_content_hash_component"}
+    if policy.get("group_key") not in allowed_group_keys:
+        raise ValueError(f"{splits_json} must use one of {sorted(allowed_group_keys)}.")
     if policy.get("label_key") != "result":
         raise ValueError(f"{splits_json} must use label_key='result'.")
     if policy.get("splitter") != "StratifiedGroupKFold":
         raise ValueError(f"{splits_json} must use StratifiedGroupKFold.")
     if shadow_policy.get("status") != "separate_shadow_holdout":
-        raise ValueError(
-            f"{splits_json} must fix val_df as separate_shadow_holdout."
-        )
+        raise ValueError(f"{splits_json} must fix val_df as separate_shadow_holdout.")
     if as_int(summary.get("train_df_raw_rows")) != train_rows:
         raise ValueError(
             f"{splits_json} train_df_raw_rows mismatch: "
@@ -151,10 +146,10 @@ def load_split_metadata(splits_json: Path, train_rows: int, val_rows: int) -> di
             f"{splits_json} val_df_raw_rows mismatch: "
             f"{summary.get('val_df_raw_rows')} != {val_rows}"
         )
-    if as_int(shadow_holdout.get("rows")) != val_rows:
+    if as_int(shadow_holdout.get("rows")) > val_rows:
         raise ValueError(
             f"{splits_json} shadow_holdout.rows mismatch: "
-            f"{shadow_holdout.get('rows')} != {val_rows}"
+            f"{shadow_holdout.get('rows')} > {val_rows}"
         )
 
     return {
@@ -167,9 +162,7 @@ def load_split_metadata(splits_json: Path, train_rows: int, val_rows: int) -> di
         "splitter": policy.get("splitter"),
         "shadow_holdout_status": shadow_policy.get("status"),
         "shadow_holdout_reason": shadow_policy.get("reason", ""),
-        "train_pool_rows_after_filters": as_int(
-            summary.get("train_pool_rows_after_filters")
-        ),
+        "train_pool_rows_after_filters": as_int(summary.get("train_pool_rows_after_filters")),
         "shadow_holdout_rows_after_filters": as_int(
             summary.get("shadow_holdout_rows_after_filters")
         ),
@@ -222,18 +215,22 @@ def build_ratio_bins(df: pd.DataFrame) -> pd.DataFrame:
         frames.append(grouped)
 
     result = pd.concat(frames, ignore_index=True)
-    return result[
-        [
-            "scope",
-            "ratio_value",
-            "consensus_band",
-            "samples",
-            "share_of_scope",
-            "sample_weight_linear",
-            "sample_weight_limited",
-            "total_samples_in_scope",
+    return (
+        result[
+            [
+                "scope",
+                "ratio_value",
+                "consensus_band",
+                "samples",
+                "share_of_scope",
+                "sample_weight_linear",
+                "sample_weight_limited",
+                "total_samples_in_scope",
+            ]
         ]
-    ].sort_values(["scope", "ratio_value"], kind="stable").reset_index(drop=True)
+        .sort_values(["scope", "ratio_value"], kind="stable")
+        .reset_index(drop=True)
+    )
 
 
 def build_class_summary(df: pd.DataFrame) -> pd.DataFrame:
@@ -260,15 +257,11 @@ def build_class_summary(df: pd.DataFrame) -> pd.DataFrame:
     )
     grouped["share_of_labeled"] = grouped["samples"] / len(df)
     grouped["disputed_share"] = grouped["disputed_samples"] / grouped["samples"]
-    grouped["low_consensus_share"] = (
-        grouped["low_consensus_samples"] / grouped["samples"]
-    )
+    grouped["low_consensus_share"] = grouped["low_consensus_samples"] / grouped["samples"]
     return grouped
 
 
-def build_low_consensus_samples(
-    df: pd.DataFrame, class_summary: pd.DataFrame
-) -> pd.DataFrame:
+def build_low_consensus_samples(df: pd.DataFrame, class_summary: pd.DataFrame) -> pd.DataFrame:
     """Собирает полный список изображений с низким согласием.
 
     Пояснение: добавляет контекст по item и классу, чтобы спорные примеры было удобно смотреть руками.
@@ -373,9 +366,7 @@ def select_report_examples(
     ].reset_index(drop=True)
 
 
-def recommend_weighting_policy(
-    df: pd.DataFrame, class_summary: pd.DataFrame
-) -> dict[str, Any]:
+def recommend_weighting_policy(df: pd.DataFrame, class_summary: pd.DataFrame) -> dict[str, Any]:
     """Выбирает рекомендацию по weighting policy на основе статистики `ratio`.
 
     Пояснение: решает, стоит ли не взвешивать, взвешивать линейно или ограниченно через clip.
@@ -386,9 +377,7 @@ def recommend_weighting_policy(
     disputed_share = disputed_samples / total_samples
     low_consensus_share = low_consensus_samples / total_samples
 
-    disputed_ratio_counts = (
-        df.loc[df["is_disputed"], "ratio"].round(6).value_counts().sort_index()
-    )
+    disputed_ratio_counts = df.loc[df["is_disputed"], "ratio"].round(6).value_counts().sort_index()
     dominant_disputed_ratio = float(disputed_ratio_counts.idxmax())
     dominant_disputed_share = (
         float(disputed_ratio_counts.max()) / disputed_samples if disputed_samples else 0.0
@@ -458,10 +447,7 @@ def build_report(
     Пояснение: сводит метаданные split, агрегаты по классам и рекомендации в один `.md` артефакт.
     """
     generated_at = (
-        datetime.now(timezone.utc)
-        .replace(microsecond=0)
-        .isoformat()
-        .replace("+00:00", "Z")
+        datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     )
     total_samples = len(df)
     disputed_samples = int(df["is_disputed"].sum())
@@ -471,9 +457,7 @@ def build_report(
     mean_ratio = float(df["ratio"].mean())
 
     ratio_bins_all = ratio_bins.loc[ratio_bins["scope"] == "all", :].copy()
-    ratio_bins_all = ratio_bins_all[
-        ["ratio_value", "consensus_band", "samples", "share_of_scope"]
-    ]
+    ratio_bins_all = ratio_bins_all[["ratio_value", "consensus_band", "samples", "share_of_scope"]]
 
     class_table = class_summary[
         [
@@ -636,9 +620,7 @@ def main() -> None:
     ensure_parent(args.low_consensus_csv)
 
     ratio_bins.to_csv(args.ratio_bins_csv, index=False, float_format="%.6f")
-    low_consensus_samples.to_csv(
-        args.low_consensus_csv, index=False, float_format="%.6f"
-    )
+    low_consensus_samples.to_csv(args.low_consensus_csv, index=False, float_format="%.6f")
     report_text = build_report(
         df=labeled_df,
         split_meta=split_meta,

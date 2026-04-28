@@ -30,6 +30,29 @@ CUDA-стек через Poetry:
 poetry install -E cuda
 ```
 
+## Команды разработки
+
+Стандартный DOD-сценарий для чистого окружения:
+
+```bash
+make setup
+make lint
+make test
+make smoke-train
+```
+
+Дополнительные команды:
+
+```bash
+make format              # отформатировать код через ruff
+make pre-commit-install  # установить локальные pre-commit hooks
+make mlflow-ui           # открыть локальный MLflow UI
+```
+
+Конфигурации обучения загружаются через OmegaConf-compatible слой в `src/training/config_loader.py`. Пути к основным артефактам централизованы в `artifacts.roots` внутри YAML-конфига.
+
+Подробнее про MLflow: [`docs/mlflow.md`](docs/mlflow.md).
+
 ## Запуск ноутбуков
 
 Через `uv`:
