@@ -44,6 +44,11 @@ checkpoint:
   monitor: val_macro_f1
 
 artifacts:
+  roots:
+    checkpoints: artifacts/checkpoints
+    logs: artifacts/logs
+    reports: reports
+    mlflow: artifacts/logs/mlruns
   oof_dir: artifacts/oof/baseline_v1
   report_path: reports/baseline_metrics_v1.md
 

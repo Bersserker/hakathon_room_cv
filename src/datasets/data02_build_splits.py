@@ -46,9 +46,7 @@ def parse_args() -> argparse.Namespace:
 
     Пояснение: читает параметры запуска скрипта, если их передали вручную.
     """
-    parser = argparse.ArgumentParser(
-        description="Build DATA-02 leakage report and group splits."
-    )
+    parser = argparse.ArgumentParser(description="Build DATA-02 leakage report and group splits.")
     parser.add_argument("--train-csv", type=Path, default=DEFAULT_TRAIN_CSV)
     parser.add_argument("--val-csv", type=Path, default=DEFAULT_VAL_CSV)
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
@@ -147,15 +145,11 @@ def load_manifest(path: Path) -> tuple[pd.DataFrame, str | None, int]:
     manifest = manifest[
         ["image_id_ext", "local_path", "width", "height", "status", "content_hash"]
     ]
-    manifest = manifest.sort_values(["image_id_ext"], kind="stable").reset_index(
+    manifest = manifest.sort_values(["image_id_ext"], kind="stable").reset_index(drop=True)
+    duplicate_rows = int(manifest.duplicated(subset=["image_id_ext"], keep="first").sum())
+    manifest = manifest.drop_duplicates(subset=["image_id_ext"], keep="first").reset_index(
         drop=True
     )
-    duplicate_rows = int(
-        manifest.duplicated(subset=["image_id_ext"], keep="first").sum()
-    )
-    manifest = manifest.drop_duplicates(
-        subset=["image_id_ext"], keep="first"
-    ).reset_index(drop=True)
     return manifest, hash_source_column, duplicate_rows
 
 
@@ -202,9 +196,7 @@ def filter_usable_rows(
     return usable, status_counts
 
 
-def overlap_summary(
-    left: pd.DataFrame, right: pd.DataFrame, column: str
-) -> dict[str, Any]:
+def overlap_summary(left: pd.DataFrame, right: pd.DataFrame, column: str) -> dict[str, Any]:
     """Считает пересечение двух таблиц по одному ключу.
 
     Пояснение: отвечает на вопрос, есть ли одинаковые item_id, image_id_ext или URL в train и val.
@@ -244,19 +236,13 @@ def hash_duplicate_summary(df: pd.DataFrame) -> dict[str, Any]:
     }
 
 
-def cross_hash_overlap_summary(
-    train_df: pd.DataFrame, val_df: pd.DataFrame
-) -> dict[str, Any]:
+def cross_hash_overlap_summary(train_df: pd.DataFrame, val_df: pd.DataFrame) -> dict[str, Any]:
     """Считает пересечение train и shadow holdout по content_hash.
 
     Пояснение: ищет одинаковые картинки между train и val, даже если у них разные image_id_ext.
     """
-    train_hashes = {
-        python_value(value) for value in train_df["content_hash"].dropna().tolist()
-    }
-    val_hashes = {
-        python_value(value) for value in val_df["content_hash"].dropna().tolist()
-    }
+    train_hashes = {python_value(value) for value in train_df["content_hash"].dropna().tolist()}
+    val_hashes = {python_value(value) for value in val_df["content_hash"].dropna().tolist()}
     overlap = sorted(train_hashes.intersection(val_hashes))
     return {
         "train_unique_hashes": int(len(train_hashes)),
@@ -314,9 +300,7 @@ def build_fold_assignments(train_df: pd.DataFrame, n_folds: int) -> pd.DataFrame
 
     item_id_fold_counts = assignments.groupby("item_id")["fold"].nunique()
     if not bool((item_id_fold_counts == 1).all()):
-        raise RuntimeError(
-            "Group leakage detected: some item_id values span multiple folds."
-        )
+        raise RuntimeError("Group leakage detected: some item_id values span multiple folds.")
 
     if "content_hash" in assignments.columns:
         hash_df = assignments.loc[assignments["content_hash"].notna()].copy()
@@ -354,12 +338,7 @@ def class_distribution_table(assignments: pd.DataFrame, n_folds: int) -> pd.Data
 
     Пояснение: показывает, сколько примеров каждого класса попало в каждый fold.
     """
-    counts = (
-        assignments.groupby(["result", "fold"])
-        .size()
-        .unstack(fill_value=0)
-        .sort_index()
-    )
+    counts = assignments.groupby(["result", "fold"]).size().unstack(fill_value=0).sort_index()
     counts = counts.reindex(columns=list(range(n_folds)), fill_value=0)
     label_map = assignments.groupby("result")["label"].first().sort_index()
 
@@ -608,9 +587,7 @@ def main() -> None:
     manifest_duplicate_rows = 0
     manifest_df = None
     if manifest_used:
-        manifest_df, manifest_hash_source, manifest_duplicate_rows = load_manifest(
-            args.manifest
-        )
+        manifest_df, manifest_hash_source, manifest_duplicate_rows = load_manifest(args.manifest)
 
     train_df = merge_manifest(train_df_raw, manifest_df)
     val_df = merge_manifest(val_df_raw, manifest_df)
@@ -622,9 +599,7 @@ def main() -> None:
     shadow_holdout, val_status_counts = filter_usable_rows(val_df, manifest_used)
 
     if train_pool["item_id"].nunique() < args.n_folds:
-        raise ValueError(
-            "Not enough unique item_id groups to build requested number of folds."
-        )
+        raise ValueError("Not enough unique item_id groups to build requested number of folds.")
 
     assignments = build_fold_assignments(train_pool, n_folds=args.n_folds)
     class_distribution = class_distribution_table(assignments, n_folds=args.n_folds)
@@ -633,23 +608,17 @@ def main() -> None:
     total_train_rows = int(len(assignments))
     total_train_groups = int(assignments["item_id"].nunique())
     for fold in range(args.n_folds):
-        fold_df = (
-            assignments.loc[assignments["fold"] == fold].copy().reset_index(drop=True)
-        )
+        fold_df = assignments.loc[assignments["fold"] == fold].copy().reset_index(drop=True)
         fold_payloads.append(
             {
                 "fold": fold,
                 "validation_rows": int(len(fold_df)),
                 "validation_item_groups": int(fold_df["item_id"].nunique()),
                 "training_rows": total_train_rows - int(len(fold_df)),
-                "training_item_groups": total_train_groups
-                - int(fold_df["item_id"].nunique()),
+                "training_item_groups": total_train_groups - int(fold_df["item_id"].nunique()),
                 "class_distribution": {
                     str(key): int(value)
-                    for key, value in fold_df["result"]
-                    .value_counts()
-                    .sort_index()
-                    .items()
+                    for key, value in fold_df["result"].value_counts().sort_index().items()
                 },
                 "records": rows_to_records(fold_df),
             }
@@ -661,9 +630,7 @@ def main() -> None:
         hash_checks = {
             "train_pool": hash_duplicate_summary(train_pool),
             "shadow_holdout": hash_duplicate_summary(shadow_holdout),
-            "train_vs_shadow_holdout": cross_hash_overlap_summary(
-                train_pool, shadow_holdout
-            ),
+            "train_vs_shadow_holdout": cross_hash_overlap_summary(train_pool, shadow_holdout),
             "across_folds": cross_fold_hash_leakage(assignments),
         }
         if manifest_hash_source is None:
@@ -724,12 +691,8 @@ def main() -> None:
             "val_df_raw_rows": int(len(val_df_raw)),
             "train_pool_rows_after_filters": int(len(assignments)),
             "shadow_holdout_rows_after_filters": int(len(shadow_holdout)),
-            "train_pool_item_groups_after_filters": int(
-                assignments["item_id"].nunique()
-            ),
-            "shadow_holdout_item_groups_after_filters": int(
-                shadow_holdout["item_id"].nunique()
-            ),
+            "train_pool_item_groups_after_filters": int(assignments["item_id"].nunique()),
+            "shadow_holdout_item_groups_after_filters": int(shadow_holdout["item_id"].nunique()),
             "duplicates_removed": {
                 "train_df_image_id_ext_rows": int(train_image_dup_rows),
                 "val_df_image_id_ext_rows": int(val_image_dup_rows),
@@ -745,9 +708,7 @@ def main() -> None:
             },
             "cross_dataset_overlap": {
                 "item_id": overlap_summary(train_df_raw, val_df_raw, "item_id"),
-                "image_id_ext": overlap_summary(
-                    train_df_raw, val_df_raw, "image_id_ext"
-                ),
+                "image_id_ext": overlap_summary(train_df_raw, val_df_raw, "image_id_ext"),
                 "image": overlap_summary(train_df_raw, val_df_raw, "image"),
             },
             "status_counts": {
@@ -762,9 +723,9 @@ def main() -> None:
             "rows": int(len(shadow_holdout)),
             "item_groups": int(shadow_holdout["item_id"].nunique()),
             "records": rows_to_records(
-                shadow_holdout.sort_values(
-                    ["item_id", "image_id_ext"], kind="stable"
-                ).reset_index(drop=True)
+                shadow_holdout.sort_values(["item_id", "image_id_ext"], kind="stable").reset_index(
+                    drop=True
+                )
             ),
         },
         "pending_checks": pending_checks,

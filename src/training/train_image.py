@@ -1,4 +1,5 @@
 import argparse
+import copy
 import json
 import random
 import re
@@ -16,6 +17,7 @@ import timm
 import torch
 import torch.nn as nn
 import yaml
+from config_loader import load_config
 from PIL import Image
 from sklearn.metrics import accuracy_score, confusion_matrix, f1_score
 from torch.utils.data import DataLoader, Dataset
@@ -30,11 +32,6 @@ def parse_args():
     parser.add_argument("--all-folds", action="store_true")
     parser.add_argument("--debug", action="store_true")
     return parser.parse_args()
-
-
-def load_config(path):
-    with open(path, "r") as f:
-        return yaml.safe_load(f)
 
 
 def set_seed(seed):
@@ -63,20 +60,13 @@ def slug(value: str) -> str:
 
 def git_commit_sha() -> str:
     try:
-        return subprocess.check_output(
-            ["git", "rev-parse", "--short", "HEAD"], text=True
-        ).strip()
+        return subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], text=True).strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
         return "unknown"
 
 
 def current_utc() -> str:
-    return (
-        datetime.now(timezone.utc)
-        .replace(microsecond=0)
-        .isoformat()
-        .replace("+00:00", "Z")
-    )
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 class RoomDataset(Dataset):
@@ -104,9 +94,7 @@ class RoomDataset(Dataset):
         img_name = normalize_image_id_ext(row[self.image_col])
         label = int(row[self.label_col])
 
-        assert 0 <= label < self.num_classes, (
-            f"Bad label: {label}, idx={idx}, file={img_name}"
-        )
+        assert 0 <= label < self.num_classes, f"Bad label: {label}, idx={idx}, file={img_name}"
 
         local_path = row.get("local_path")
         img_path = Path(local_path) if isinstance(local_path, str) and local_path else None
@@ -205,9 +193,7 @@ def build_loader(df, images_dir, transform, cfg, device, shuffle):
 def create_model(cfg, device, debug=False):
     backbone = cfg["model"]["backbone"]
     if "whitelist" in cfg["model"]:
-        assert backbone in cfg["model"]["whitelist"], (
-            f"Backbone {backbone} is not in whitelist"
-        )
+        assert backbone in cfg["model"]["whitelist"], f"Backbone {backbone} is not in whitelist"
 
     try:
         return timm.create_model(
@@ -228,9 +214,7 @@ def create_model(cfg, device, debug=False):
 
 def load_model_from_checkpoint(checkpoint_path, device):
     ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
-    model = timm.create_model(
-        ckpt["backbone"], pretrained=False, num_classes=ckpt["num_classes"]
-    )
+    model = timm.create_model(ckpt["backbone"], pretrained=False, num_classes=ckpt["num_classes"])
     model.load_state_dict(ckpt["model_state_dict"])
     model.to(device)
     return model
@@ -342,9 +326,7 @@ def metrics_from_frame(df: pd.DataFrame, num_classes: int) -> dict[str, Any]:
             f1_score(labels, preds, average="macro", labels=class_ids, zero_division=0)
         ),
         "accuracy": float(accuracy_score(labels, preds)),
-        "per_class_f1": f1_score(
-            labels, preds, average=None, labels=class_ids, zero_division=0
-        ),
+        "per_class_f1": f1_score(labels, preds, average=None, labels=class_ids, zero_division=0),
         "confusion_matrix": confusion_matrix(labels, preds, labels=class_ids),
     }
 
@@ -400,13 +382,13 @@ def write_metrics_report(
     total_train_rows = int(splits["summary"]["train_pool_rows_after_filters"])
     total_shadow_rows = int(splits["summary"]["shadow_holdout_rows_after_filters"])
     coverage = f"{len(oof_df)}/{total_train_rows}"
-    status = "debug_smoke" if debug else "full_cv" if len(oof_df) == total_train_rows else "partial_cv"
+    status = (
+        "debug_smoke" if debug else "full_cv" if len(oof_df) == total_train_rows else "partial_cv"
+    )
     full_oof_ready = len(oof_df) == total_train_rows
     shadow_ready = shadow_df is not None and len(shadow_df) == total_shadow_rows
     gate_decision = (
-        "pending_u1_threshold"
-        if full_oof_ready and shadow_ready
-        else "pending_full_cv"
+        "pending_u1_threshold" if full_oof_ready and shadow_ready else "pending_full_cv"
     )
 
     lines = [
@@ -484,7 +466,12 @@ def normalize_mlflow_experiment(cfg) -> str:
     mlflow_cfg = cfg["mlflow"]
     tracking_uri = mlflow_cfg["tracking_uri"]
     experiment_name = mlflow_cfg["experiment_name"]
-    artifact_root = Path(mlflow_cfg.get("artifact_root", "artifacts/logs/mlruns")).resolve()
+    artifact_root = Path(
+        mlflow_cfg.get(
+            "artifact_root",
+            cfg.get("artifacts", {}).get("roots", {}).get("mlflow", "artifacts/logs/mlruns"),
+        )
+    ).resolve()
     experiment_artifact_uri = (artifact_root / experiment_name).as_uri()
 
     db_path = sqlite_path_from_uri(tracking_uri)
@@ -503,9 +490,7 @@ def normalize_mlflow_experiment(cfg) -> str:
                     "select run_uuid, artifact_uri from runs where experiment_id = ?",
                     (experiment_id,),
                 ).fetchall():
-                    expected_uri = (
-                        artifact_root / name / run_id / "artifacts"
-                    ).as_uri()
+                    expected_uri = (artifact_root / name / run_id / "artifacts").as_uri()
                     if artifact_uri != expected_uri:
                         conn.execute(
                             "update runs set artifact_uri = ? where run_uuid = ?",
@@ -592,7 +577,9 @@ def run_name(cfg, fold: int) -> str:
 
 
 def checkpoint_path(cfg, fold: int) -> Path:
-    checkpoint_dir = Path(cfg["checkpoint"]["dir"])
+    checkpoint_dir = Path(
+        cfg.get("artifacts", {}).get("roots", {}).get("checkpoints", cfg["checkpoint"]["dir"])
+    )
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     backbone_tag = slug(cfg["model"]["backbone"])
     image_size = cfg["data"]["image_size"]
@@ -600,7 +587,9 @@ def checkpoint_path(cfg, fold: int) -> Path:
     return checkpoint_dir / f"roomclf_{backbone_tag}_fold{fold}_{image_size}_{version}.ckpt"
 
 
-def run_fold(args, cfg, splits, fold: int, experiment_id: str) -> tuple[pd.DataFrame, pd.DataFrame, str]:
+def run_fold(
+    args, cfg, splits, fold: int, experiment_id: str
+) -> tuple[pd.DataFrame, pd.DataFrame, str]:
     set_seed(int(cfg["train"]["seed"]) + fold)
     device = get_device(cfg)
     print(f"Device: {device}")
@@ -762,7 +751,15 @@ def aggregate_shadow(shadow_frames: list[pd.DataFrame], num_classes: int) -> pd.
     if len(shadow_frames) == 1:
         return shadow_frames[0]
 
-    key_cols = ["image_id_ext", "item_id", "result", "label", "source_dataset", "local_path", "content_hash"]
+    key_cols = [
+        "image_id_ext",
+        "item_id",
+        "result",
+        "label",
+        "source_dataset",
+        "local_path",
+        "content_hash",
+    ]
     base_cols = [col for col in key_cols if col in shadow_frames[0].columns]
     merged = shadow_frames[0][base_cols + ["target"]].copy().reset_index(drop=True)
 
@@ -802,7 +799,7 @@ def main():
     shadow_frames: list[pd.DataFrame] = []
     run_ids: dict[int, str] = {}
     for fold in folds:
-        fold_cfg = yaml.safe_load(yaml.safe_dump(cfg))
+        fold_cfg = copy.deepcopy(cfg)
         oof_frame, shadow_frame, run_id = run_fold(args, fold_cfg, splits, fold, experiment_id)
         oof_frames.append(oof_frame)
         shadow_frames.append(shadow_frame)
