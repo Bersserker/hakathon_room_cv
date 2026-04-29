@@ -13,6 +13,13 @@ lint:
 test:
 	$(UV) run pytest
 
+splits:
+	$(UV) run python scripts/data02_build_splits.py
+
+manifest:
+	$(UV) run python src/datasets/make_manifest.py
+
+
 smoke-train:
 	$(UV) run python src/training/train_image.py --config $(CONFIG) --fold $(FOLD) --debug
 

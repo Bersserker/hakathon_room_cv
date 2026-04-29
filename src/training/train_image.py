@@ -22,6 +22,7 @@ from PIL import Image
 from sklearn.metrics import accuracy_score, confusion_matrix, f1_score
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
+from torch.utils.data import WeightedRandomSampler
 from tqdm import tqdm
 
 
@@ -68,6 +69,29 @@ def git_commit_sha() -> str:
 def current_utc() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
+def compute_class_weights(labels, num_classes):
+    counts = np.bincount(labels, minlength=num_classes)
+    counts = np.maximum(counts, 1)
+
+    weights = counts.sum() / (num_classes * counts)
+    weights = torch.tensor(weights, dtype=torch.float32)
+
+    return weights
+
+def build_balanced_sampler(labels, num_classes):
+    counts = np.bincount(labels, minlength=num_classes)
+    counts = np.maximum(counts, 1)
+
+    class_weights = 1.0 / counts
+    sample_weights = class_weights[labels]
+
+    sampler = WeightedRandomSampler(
+        weights=torch.DoubleTensor(sample_weights),
+        num_samples=len(sample_weights),
+        replacement=True,
+    )
+
+    return sampler
 
 class RoomDataset(Dataset):
     def __init__(
@@ -78,6 +102,7 @@ class RoomDataset(Dataset):
         label_col,
         transform=None,
         num_classes=20,
+        ratio_policy = None
     ):
         self.df = df.reset_index(drop=True).copy()
         self.images_dir = Path(images_dir)
@@ -85,26 +110,35 @@ class RoomDataset(Dataset):
         self.label_col = label_col
         self.transform = transform
         self.num_classes = num_classes
+        self.ratio_policy = ratio_policy
 
     def __len__(self):
         return len(self.df)
 
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
-        img_name = normalize_image_id_ext(row[self.image_col])
+
+        img_name = row[self.image_col]
+        img_path = self.images_dir / img_name
+        
         label = int(row[self.label_col])
 
-        assert 0 <= label < self.num_classes, f"Bad label: {label}, idx={idx}, file={img_name}"
+        image = Image.open(img_path).convert("RGB")
 
-        local_path = row.get("local_path")
-        img_path = Path(local_path) if isinstance(local_path, str) and local_path else None
-        if img_path is None or not img_path.exists():
-            img_path = self.images_dir / img_name
+        if self.transform is not None:
+            image = self.transform(image)
 
-        img = Image.open(img_path).convert("RGB")
-        if self.transform:
-            img = self.transform(img)
-        return img, label
+        if "ratio" in row.index:
+            ratio = float(row["ratio"])
+        else:
+            ratio = 1.0
+
+        if self.ratio_policy == "clip_075_100":
+            sample_weight = np.clip(ratio, 0.75, 1.0)
+        else:
+            sample_weight = 1.0
+
+        return image, label, torch.tensor(sample_weight, dtype=torch.float32)
 
 
 def get_device(cfg):
@@ -172,7 +206,16 @@ def build_fold_frames(splits: dict[str, Any], fold: int) -> tuple[pd.DataFrame, 
     return records_to_df(train_records), records_to_df(valid_records)
 
 
-def build_loader(df, images_dir, transform, cfg, device, shuffle):
+def build_loader(
+    df,
+    images_dir,
+    transform,
+    cfg,
+    device,
+    shuffle=False,
+    sampler=None,
+    ratio_policy="none",
+):
     dataset = RoomDataset(
         df=df,
         images_dir=images_dir,
@@ -180,11 +223,14 @@ def build_loader(df, images_dir, transform, cfg, device, shuffle):
         label_col=cfg["data"]["label_col"],
         transform=transform,
         num_classes=cfg["data"]["num_classes"],
+        ratio_policy=ratio_policy,
     )
+
     return DataLoader(
         dataset,
         batch_size=cfg["train"]["batch_size"],
-        shuffle=shuffle,
+        shuffle=shuffle if sampler is None else False,
+        sampler=sampler,
         num_workers=cfg["train"]["num_workers"],
         pin_memory=device.type == "cuda",
     )
@@ -220,18 +266,34 @@ def load_model_from_checkpoint(checkpoint_path, device):
     return model
 
 
-def train_one_epoch(model, loader, criterion, optimizer, device, scaler=None, use_amp=False):
+def train_one_epoch(
+    model,
+    loader,
+    criterion,
+    optimizer,
+    device,
+    scaler=None,
+    use_amp=False,
+    loss_name="ce",
+):
     model.train()
     total_loss = 0.0
 
-    for images, labels in tqdm(loader, desc="Train"):
+    for images, labels, sample_weights in tqdm(loader, desc="Train"):
         images = images.to(device)
         labels = labels.to(device)
+        sample_weights = sample_weights.to(device)
 
         optimizer.zero_grad()
+
         with torch.autocast(device_type=device.type, enabled=use_amp):
             outputs = model(images)
-            loss = criterion(outputs, labels)
+
+            if loss_name == "ratio_ce":
+                loss_per_sample = criterion(outputs, labels)
+                loss = (loss_per_sample * sample_weights).mean()
+            else:
+                loss = criterion(outputs, labels)
 
         if use_amp:
             scaler.scale(loss).backward()
@@ -247,19 +309,25 @@ def train_one_epoch(model, loader, criterion, optimizer, device, scaler=None, us
 
 
 @torch.no_grad()
-def predict(model, loader, criterion, device, use_amp=False, desc="Eval"):
+def predict(model, loader, criterion, device, use_amp=False, desc="Eval", loss_name="ce"):
     model.eval()
     total_loss = 0.0
     all_logits = []
     all_labels = []
 
-    for images, labels in tqdm(loader, desc=desc):
+    for images, labels, sample_weights in tqdm(loader, desc=desc):
         images = images.to(device)
         labels = labels.to(device)
+        sample_weights = sample_weights.to(device)
 
         with torch.autocast(device_type=device.type, enabled=use_amp):
             outputs = model(images)
-            loss = criterion(outputs, labels)
+
+            if loss_name == "ratio_ce":
+                loss_per_sample = criterion(outputs, labels)
+                loss = (loss_per_sample * sample_weights).mean()
+            else:
+                loss = criterion(outputs, labels)
 
         total_loss += loss.item() * images.size(0)
         all_logits.append(outputs.detach().cpu().numpy())
@@ -269,6 +337,7 @@ def predict(model, loader, criterion, device, use_amp=False, desc="Eval"):
     probs = torch.softmax(torch.from_numpy(logits), dim=1).numpy()
     labels = np.array(all_labels)
     preds = probs.argmax(axis=1)
+
     return {
         "loss": total_loss / len(loader.dataset),
         "logits": logits,
@@ -609,14 +678,31 @@ def run_fold(
         cfg["train"]["num_workers"] = cfg["debug"]["num_workers"]
 
     train_transform, val_transform = get_transforms(cfg)
+    loss_name = cfg["experiment"].get("loss", "ce")
+    sampler_type = cfg["experiment"].get("sampler", "shuffle")
+    ratio_policy = cfg["experiment"].get("ratio_policy", "none")
+
+    num_classes = int(cfg["data"]["num_classes"])
+
+    train_sampler = None
+    train_shuffle = True
+
+    if sampler_type == "balanced":
+        train_labels = train_df[cfg["data"]["label_col"]].astype(int).values
+        train_sampler = build_balanced_sampler(train_labels, num_classes)
+        train_shuffle = False
+
     train_loader = build_loader(
         train_df,
         cfg["data"]["images_train_dir"],
         train_transform,
         cfg,
         device,
-        shuffle=True,
+        shuffle=train_shuffle,
+        sampler=train_sampler,
+        ratio_policy=ratio_policy,
     )
+
     valid_loader = build_loader(
         valid_df,
         cfg["data"]["images_train_dir"],
@@ -624,7 +710,10 @@ def run_fold(
         cfg,
         device,
         shuffle=False,
+        sampler=None,
+        ratio_policy="none",
     )
+
     shadow_loader = build_loader(
         shadow_df,
         cfg["data"]["images_val_dir"],
@@ -632,6 +721,8 @@ def run_fold(
         cfg,
         device,
         shuffle=False,
+        sampler=None,
+        ratio_policy="none",
     )
 
     ckpt_path = checkpoint_path(cfg, fold)
@@ -642,7 +733,18 @@ def run_fold(
         print("Creating new model...")
         model = create_model(cfg, device, debug=args.debug)
 
-    criterion = nn.CrossEntropyLoss()
+    class_weights = None
+    if loss_name == "weighted_ce":
+        train_labels = train_df[cfg["data"]["label_col"]].astype(int).values
+        class_weights = compute_class_weights(train_labels, num_classes).to(device)
+        criterion = nn.CrossEntropyLoss(weight=class_weights)
+
+    elif loss_name == "ratio_ce":
+        criterion = nn.CrossEntropyLoss(reduction="none")
+
+    else:
+        criterion = nn.CrossEntropyLoss()
+
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=cfg["train"]["lr"],
@@ -669,6 +771,7 @@ def run_fold(
                 device=device,
                 scaler=scaler,
                 use_amp=use_amp,
+                loss_name=loss_name,
             )
             val_result = predict(
                 model=model,
@@ -677,6 +780,7 @@ def run_fold(
                 device=device,
                 use_amp=use_amp,
                 desc="Eval",
+                loss_name=loss_name,
             )
 
             print(
@@ -718,6 +822,7 @@ def run_fold(
             device=device,
             use_amp=use_amp,
             desc="OOF",
+            loss_name=loss_name,
         )
         shadow_result = predict(
             model=model,
@@ -726,6 +831,7 @@ def run_fold(
             device=device,
             use_amp=use_amp,
             desc="Shadow",
+            loss_name=loss_name,
         )
 
         oof_frame = prediction_frame(valid_df, oof_result, cfg["data"]["num_classes"])
