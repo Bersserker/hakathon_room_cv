@@ -116,36 +116,193 @@ def get_device(cfg):
     return torch.device("cpu")
 
 
-def get_transforms(cfg):
-    image_size = int(cfg["data"].get("image_size", 224))
-    resize_size = int(cfg["data"].get("resize_size", 256))
+def pair(value: Any, name: str) -> tuple[float, float]:
+    if not isinstance(value, (list, tuple)) or len(value) != 2:
+        raise ValueError(f"{name} must contain exactly two values")
+    return float(value[0]), float(value[1])
 
-    train_transform = transforms.Compose(
-        [
+
+def int_pair(value: Any, name: str) -> tuple[int, int]:
+    if not isinstance(value, (list, tuple)) or len(value) != 2:
+        raise ValueError(f"{name} must contain exactly two values")
+    return int(value[0]), int(value[1])
+
+
+def get_augmentation_cfg(cfg) -> dict[str, Any]:
+    augmentation = cfg.get("augmentation", {})
+    if not isinstance(augmentation, dict):
+        raise ValueError("Config section 'augmentation' must be a mapping")
+    return augmentation
+
+
+class AlbumentationsImageTransform:
+    def __init__(self, transform) -> None:
+        self.transform = transform
+
+    def __call__(self, image: Image.Image) -> torch.Tensor:
+        return self.transform(image=np.array(image))["image"]
+
+
+def get_torchvision_transforms(
+    image_size: int, resize_size: int, augmentation: dict[str, Any], policy: str
+):
+    normalize = transforms.Normalize(
+        mean=[0.485, 0.456, 0.406],
+        std=[0.229, 0.224, 0.225],
+    )
+
+    if policy == "baseline_v1":
+        train_steps = [
             transforms.Resize((resize_size, resize_size)),
             transforms.RandomResizedCrop(image_size),
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.ColorJitter(0.2, 0.2, 0.2),
             transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225],
+            normalize,
+        ]
+    elif policy == "safe_v1":
+        crop_cfg = augmentation.get("random_resized_crop", {})
+        jitter_cfg = augmentation.get("color_jitter", {})
+        erasing_cfg = augmentation.get("random_erasing", {})
+        train_steps = [
+            transforms.Resize((resize_size, resize_size)),
+            transforms.RandomResizedCrop(
+                image_size,
+                scale=pair(crop_cfg.get("scale", [0.75, 1.0]), "random_resized_crop.scale"),
+                ratio=pair(crop_cfg.get("ratio", [0.85, 1.15]), "random_resized_crop.ratio"),
+            ),
+            transforms.RandomHorizontalFlip(p=float(augmentation.get("horizontal_flip_p", 0.5))),
+            transforms.ColorJitter(
+                brightness=float(jitter_cfg.get("brightness", 0.15)),
+                contrast=float(jitter_cfg.get("contrast", 0.15)),
+                saturation=float(jitter_cfg.get("saturation", 0.10)),
+                hue=float(jitter_cfg.get("hue", 0.0)),
+            ),
+            transforms.RandomGrayscale(p=float(augmentation.get("random_grayscale_p", 0.05))),
+            transforms.ToTensor(),
+            normalize,
+            transforms.RandomErasing(
+                p=float(erasing_cfg.get("p", 0.10)),
+                scale=pair(erasing_cfg.get("scale", [0.02, 0.10]), "random_erasing.scale"),
+                ratio=pair(erasing_cfg.get("ratio", [0.3, 3.3]), "random_erasing.ratio"),
             ),
         ]
-    )
+    else:
+        raise ValueError(f"Unsupported augmentation policy: {policy}")
+
+    train_transform = transforms.Compose(train_steps)
 
     val_transform = transforms.Compose(
         [
             transforms.Resize((resize_size, resize_size)),
             transforms.CenterCrop(image_size),
             transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225],
-            ),
+            normalize,
         ]
     )
     return train_transform, val_transform
+
+
+def get_albumentations_transforms(
+    image_size: int, resize_size: int, augmentation: dict[str, Any], policy: str
+):
+    if policy != "albumentations_v1":
+        raise ValueError(f"Unsupported albumentations policy: {policy}")
+
+    import albumentations as A
+    import cv2
+    from albumentations.pytorch import ToTensorV2
+
+    crop_cfg = augmentation.get("random_resized_crop", {})
+    brightness_cfg = augmentation.get("random_brightness_contrast", {})
+    hsv_cfg = augmentation.get("hue_saturation_value", {})
+    affine_cfg = augmentation.get("affine", {})
+    dropout_cfg = augmentation.get("coarse_dropout", {})
+
+    train_transform = AlbumentationsImageTransform(
+        A.Compose(
+            [
+                A.RandomResizedCrop(
+                    size=(image_size, image_size),
+                    scale=pair(crop_cfg.get("scale", [0.72, 1.0]), "random_resized_crop.scale"),
+                    ratio=pair(crop_cfg.get("ratio", [0.85, 1.15]), "random_resized_crop.ratio"),
+                ),
+                A.HorizontalFlip(p=float(augmentation.get("horizontal_flip_p", 0.5))),
+                A.RandomBrightnessContrast(
+                    brightness_limit=float(brightness_cfg.get("brightness_limit", 0.15)),
+                    contrast_limit=float(brightness_cfg.get("contrast_limit", 0.15)),
+                    p=float(brightness_cfg.get("p", 0.5)),
+                ),
+                A.HueSaturationValue(
+                    hue_shift_limit=int(hsv_cfg.get("hue_shift_limit", 5)),
+                    sat_shift_limit=int(hsv_cfg.get("sat_shift_limit", 10)),
+                    val_shift_limit=int(hsv_cfg.get("val_shift_limit", 10)),
+                    p=float(hsv_cfg.get("p", 0.25)),
+                ),
+                A.CLAHE(
+                    clip_limit=float(augmentation.get("clahe", {}).get("clip_limit", 2.0)),
+                    p=float(augmentation.get("clahe", {}).get("p", 0.10)),
+                ),
+                A.Affine(
+                    scale=pair(affine_cfg.get("scale", [0.95, 1.05]), "affine.scale"),
+                    translate_percent=pair(
+                        affine_cfg.get("translate_percent", [-0.03, 0.03]),
+                        "affine.translate_percent",
+                    ),
+                    rotate=pair(affine_cfg.get("rotate", [-5.0, 5.0]), "affine.rotate"),
+                    border_mode=cv2.BORDER_REFLECT_101,
+                    p=float(affine_cfg.get("p", 0.15)),
+                ),
+                A.ToGray(p=float(augmentation.get("to_gray_p", 0.05))),
+                A.CoarseDropout(
+                    num_holes_range=int_pair(
+                        dropout_cfg.get("num_holes_range", [1, 2]),
+                        "coarse_dropout.num_holes_range",
+                    ),
+                    hole_height_range=pair(
+                        dropout_cfg.get("hole_height_range", [0.05, 0.14]),
+                        "coarse_dropout.hole_height_range",
+                    ),
+                    hole_width_range=pair(
+                        dropout_cfg.get("hole_width_range", [0.05, 0.14]),
+                        "coarse_dropout.hole_width_range",
+                    ),
+                    p=float(dropout_cfg.get("p", 0.15)),
+                ),
+                A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+                ToTensorV2(),
+            ]
+        )
+    )
+    val_transform = AlbumentationsImageTransform(
+        A.Compose(
+            [
+                A.Resize(height=resize_size, width=resize_size),
+                A.CenterCrop(height=image_size, width=image_size),
+                A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+                ToTensorV2(),
+            ]
+        )
+    )
+    return train_transform, val_transform
+
+
+def get_transforms(cfg):
+    image_size = int(cfg["data"].get("image_size", 224))
+    resize_size = int(cfg["data"].get("resize_size", 256))
+    augmentation = get_augmentation_cfg(cfg)
+    library = augmentation.get("library", "torchvision")
+    policy = augmentation.get("policy", "baseline_v1")
+
+    if library == "torchvision":
+        return get_torchvision_transforms(image_size, resize_size, augmentation, policy)
+    if library == "albumentations":
+        return get_albumentations_transforms(image_size, resize_size, augmentation, policy)
+    raise ValueError(f"Unsupported augmentation library: {library}")
+
+
+def get_label_smoothing(cfg) -> float:
+    return float(get_augmentation_cfg(cfg).get("label_smoothing", 0.0))
 
 
 def load_splits(path: str | Path) -> dict[str, Any]:
@@ -533,6 +690,9 @@ def log_mlflow_params(cfg, fold, device, debug):
             "weak_label_flag": cfg["experiment"]["weak_label_flag"],
             "feature_flags": cfg["experiment"]["feature_flags"],
             "tta_flag": cfg["experiment"]["tta_flag"],
+            "augmentation_library": cfg.get("augmentation", {}).get("library", "torchvision"),
+            "augmentation_policy": cfg.get("augmentation", {}).get("policy", "baseline_v1"),
+            "label_smoothing": get_label_smoothing(cfg),
         }
     )
     mlflow.set_tags(
@@ -549,6 +709,9 @@ def log_mlflow_params(cfg, fold, device, debug):
             "weak_label_flag": str(cfg["experiment"]["weak_label_flag"]),
             "feature_flags": cfg["experiment"]["feature_flags"],
             "tta_flag": str(cfg["experiment"]["tta_flag"]),
+            "augmentation_library": str(cfg.get("augmentation", {}).get("library", "torchvision")),
+            "augmentation_policy": str(cfg.get("augmentation", {}).get("policy", "baseline_v1")),
+            "label_smoothing": str(get_label_smoothing(cfg)),
         }
     )
 
@@ -642,7 +805,7 @@ def run_fold(
         print("Creating new model...")
         model = create_model(cfg, device, debug=args.debug)
 
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(label_smoothing=get_label_smoothing(cfg))
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=cfg["train"]["lr"],
