@@ -49,17 +49,44 @@ artifacts:
     logs: artifacts/logs
     reports: reports
     mlflow: artifacts/logs/mlruns
-  oof_dir: artifacts/oof/baseline_v1
-  report_path: reports/baseline_metrics_v1.md
+  oof_dir: artifacts/oof/albumentations_v1
+  report_path: reports/baseline_metrics_albumentations_v1.md
 
 augmentation:
-  library: torchvision
-  policy: baseline_v1
-  label_smoothing: 0.0
+  library: albumentations
+  policy: albumentations_v1
+  random_resized_crop:
+    scale: [0.72, 1.0]
+    ratio: [0.85, 1.15]
+  horizontal_flip_p: 0.5
+  random_brightness_contrast:
+    brightness_limit: 0.15
+    contrast_limit: 0.15
+    p: 0.5
+  hue_saturation_value:
+    hue_shift_limit: 5
+    sat_shift_limit: 10
+    val_shift_limit: 10
+    p: 0.25
+  clahe:
+    clip_limit: 2.0
+    p: 0.05
+  affine:
+    scale: [0.95, 1.05]
+    translate_percent: [-0.03, 0.03]
+    rotate: [-5.0, 5.0]
+    p: 0.10
+  to_gray_p: 0.05
+  coarse_dropout:
+    num_holes_range: [1, 2]
+    hole_height_range: [0.05, 0.14]
+    hole_width_range: [0.05, 0.14]
+    p: 0.15
+  label_smoothing: 0.05
 
 experiment:
-  version: v01
-  loss: ce
+  version: v03_albumentations
+  loss: ce_label_smoothing_005
   sampler: shuffle
   ratio_policy: none
   weak_label_flag: false
@@ -68,5 +95,5 @@ experiment:
 
 mlflow:
   tracking_uri: sqlite:///artifacts/logs/mlflow.db
-  experiment_name: room_type_image_baseline
+  experiment_name: room_type_image_albumentations
   artifact_root: artifacts/logs/mlruns
