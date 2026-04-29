@@ -38,3 +38,7 @@ pre-commit-install:
 
 mlflow-ui:
 	$(UV) run mlflow ui --backend-store-uri sqlite:///artifacts/logs/mlflow.db
+
+
+seconf_model:
+	$(UV) un python src/training/train_image.py --config configs/model/model2_v1.yaml --all-folds
