@@ -10,7 +10,7 @@ from PIL import Image, UnidentifiedImageError
 
 
 DEFAULT_BASE_DIRS = (
-    Path("data/raw/room_type"),
+    Path("data/raw"),
     Path("data/raw"),
 )
 

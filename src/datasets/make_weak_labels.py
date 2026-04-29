@@ -13,7 +13,7 @@ PROJECT_ROOT = Path.cwd()
 # Если запускаешь из src/, тогда раскомментируй:
 # PROJECT_ROOT = Path.cwd().parent
 
-DATA_RAW = PROJECT_ROOT / "data" / "raw" / "room_type"
+DATA_RAW = PROJECT_ROOT / "data" / "raw" 
 DATA_PROCESSED = PROJECT_ROOT / "data" / "processed"
 REPORTS_DIR = PROJECT_ROOT / "reports"
 
