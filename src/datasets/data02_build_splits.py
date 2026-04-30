@@ -13,7 +13,7 @@ from sklearn.model_selection import StratifiedGroupKFold
 from src.utils.labeled_data import load_labeled_csv, require_columns
 
 
-REQUIRED_CSV_COLUMNS = {"item_id", "image", "image_id_ext", "result", "label"}
+REQUIRED_CSV_COLUMNS = {"item_id", "image", "image_id_ext", "result", "label", "ratio"}
 DEFAULT_TRAIN_CSV = Path("data/raw/train_df.csv")
 DEFAULT_VAL_CSV = Path("data/raw/val_df.csv")
 DEFAULT_MANIFEST = Path("data/processed/data_manifest.parquet")
@@ -370,6 +370,7 @@ def rows_to_records(df: pd.DataFrame) -> list[dict[str, Any]]:
         "item_id",
         "result",
         "label",
+        "ratio",
         "image",
         "source_dataset",
         "local_path",
@@ -575,11 +576,13 @@ def main() -> None:
         args.train_csv,
         required_columns=REQUIRED_CSV_COLUMNS,
         source_dataset="train_df",
+        ratio_column="ratio",
     )
     val_df_raw = load_labeled_csv(
         args.val_csv,
         required_columns=REQUIRED_CSV_COLUMNS,
         source_dataset="val_df",
+        ratio_column="ratio",
     )
 
     manifest_used = args.manifest.exists()

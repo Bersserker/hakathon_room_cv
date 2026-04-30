@@ -1,0 +1,39 @@
+release:
+  name: rc1
+  candidate: cv03_balanced_sampler
+  notes: Current best available OOF/shadow candidate before retraining ratio/sampler-v2 ablations.
+
+data:
+  test_csv: data/raw/test_df.csv
+  images_test_dir: data/raw/test_images/test_images
+  class_mapping: configs/data/class_mapping.yaml
+  num_classes: 20
+  image_size: 224
+  resize_size: 256
+
+model:
+  backbone: convnext_tiny.in12k_ft_in1k
+  checkpoints:
+    - path: artifacts/checkpoints/roomclf_convnexttiny_fold0_224_v01.ckpt
+      fold: 0
+    - path: artifacts/checkpoints/roomclf_convnexttiny_fold1_224_v01.ckpt
+      fold: 1
+    - path: artifacts/checkpoints/roomclf_convnexttiny_fold2_224_v01.ckpt
+      fold: 2
+    - path: artifacts/checkpoints/roomclf_convnexttiny_fold3_224_v01.ckpt
+      fold: 3
+    - path: artifacts/checkpoints/roomclf_convnexttiny_fold4_224_v01.ckpt
+      fold: 4
+
+postprocess:
+  class_bias: null
+
+inference:
+  seed: 42
+  device: cuda
+  batch_size: 64
+  num_workers: 0
+  tta: false
+  validate_after: true
+  output_submission: releases/rc1/submission.csv
+  output_predictions: releases/rc1/predictions.parquet

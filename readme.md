@@ -47,9 +47,45 @@ make smoke-train
 make format              # отформатировать код через ruff
 make pre-commit-install  # установить локальные pre-commit hooks
 make mlflow-ui           # открыть локальный MLflow UI
+make infer               # сгенерировать releases/rc1/submission.csv
+make validate-submission # проверить submission по test_df и class mapping
 ```
 
 Конфигурации обучения загружаются через OmegaConf-compatible слой в `src/training/config_loader.py`. Пути к основным артефактам централизованы в `artifacts.roots` внутри YAML-конфига.
+
+## Class schema, inference и submission
+
+Подтверждённая схема классов: 20 классов `0..19`. Финальный CSV должен иметь ровно две колонки:
+
+```csv
+image_id_ext,Predicted
+```
+
+Артефакты схемы и аудита:
+
+- `configs/data/class_mapping.yaml`
+- `reports/class_schema_audit.md`
+
+Сгенерировать submission:
+
+```bash
+uv run python -m src.inference.predict --config configs/release/rc1.yaml
+```
+
+Проверить submission:
+
+```bash
+uv run python -m src.inference.validate_submission \
+  --submission releases/rc1/submission.csv \
+  --test-csv data/raw/test_df.csv \
+  --class-mapping configs/data/class_mapping.yaml
+```
+
+Запустить demo:
+
+```bash
+uv run python demo/app.py --config configs/release/rc1.yaml
+```
 
 Подробнее про MLflow: [`docs/mlflow.md`](docs/mlflow.md).
 

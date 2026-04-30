@@ -241,9 +241,6 @@ def build_weak_labels():
     class_distribution = weak_df_clean["class_id"].value_counts().sort_index()
     source_distribution = weak_df_clean["source"].value_counts()
 
-    class_distribution_str = class_distribution.to_string()
-    source_distribution_str = source_distribution.to_string()
-
     report = f"""# Weak labels audit
 
 ## Output
@@ -255,7 +252,7 @@ def build_weak_labels():
 
 """
 
-    for source_name, cfg in HEURISTICS_CONFIG.items():
+    for cfg in HEURISTICS_CONFIG.values():
         report += f"- `{cfg['csv'].name}` -> class_id `{cfg['class_id']}`\n"
 
     report += f"""

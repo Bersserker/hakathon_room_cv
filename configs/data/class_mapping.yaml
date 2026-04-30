@@ -1,0 +1,57 @@
+schema_version: class_mapping_v1
+task: room_type_image_classification
+num_classes: 20
+prediction:
+  column: Predicted
+  valid_class_ids:
+  - 0
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  - 6
+  - 7
+  - 8
+  - 9
+  - 10
+  - 11
+  - 12
+  - 13
+  - 14
+  - 15
+  - 16
+  - 17
+  - 18
+  - 19
+  min_class_id: 0
+  max_class_id: 19
+id_to_label:
+  0: кухня / столовая
+  1: кухня-гостиная
+  2: универсальная комната
+  3: гостиная
+  4: спальня
+  5: кабинет
+  6: детская
+  7: ванная комната
+  8: туалет
+  9: совмещенный санузел
+  10: коридор / прихожая
+  11: гардеробная / кладовая / постирочная
+  12: балкон / лоджия
+  13: вид из окна / с балкона
+  14: дом снаружи / двор
+  15: подъезд / лестничная площадка
+  16: другое
+  17: предметы интерьера / быт.техника
+  18: не могу дать ответ / не ясно
+  19: комната без мебели
+sources:
+  train_csv: data/raw/train_df.csv
+  val_csv: data/raw/val_df.csv
+  sample_submission: data/raw/room_type_sample_submission.csv
+  splits_json: data/splits/splits_v1.json
+notes:
+- 'Confirmed from train_df.result and sample submission: classes 0..19 are valid.'
+- val_df/shadow holdout has no class 18 support; use OOF as primary all-class gate.
