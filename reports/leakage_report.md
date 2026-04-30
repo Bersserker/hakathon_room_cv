@@ -2,7 +2,7 @@
 
 ## Inputs and policy
 - version: `splits_v1`
-- timestamp_utc: `2026-04-28T19:07:15Z`
+- timestamp_utc: `2026-04-26T16:19:30Z`
 - train_csv: `data/raw/train_df.csv`
 - val_csv: `data/raw/val_df.csv`
 - n_folds: `5`

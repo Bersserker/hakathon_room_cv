@@ -1,7 +1,9 @@
-.PHONY: setup lint test smoke-train train weak-labels-v1 format pre-commit-install mlflow-ui
+.PHONY: setup lint test smoke-train train infer validate-submission weak-labels-v1 format pre-commit-install mlflow-ui
 
 UV ?= uv
 CONFIG ?= configs/model/image_baseline_v1.yaml
+RELEASE_CONFIG ?= configs/release/rc1.yaml
+SUBMISSION ?= releases/rc1/submission.csv
 FOLD ?= 0
 
 setup:
@@ -25,6 +27,12 @@ smoke-train:
 
 train:
 	$(UV) run python src/training/train_image.py --config $(CONFIG) --fold $(FOLD)
+
+infer:
+	$(UV) run python -m src.inference.predict --config $(RELEASE_CONFIG)
+
+validate-submission:
+	$(UV) run python -m src.inference.validate_submission --submission $(SUBMISSION) --test-csv data/raw/test_df.csv --class-mapping configs/data/class_mapping.yaml
 
 weak-labels-v1:
 	$(UV) run python scripts/build_weak_labels_v1.py

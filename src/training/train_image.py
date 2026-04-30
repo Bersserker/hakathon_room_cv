@@ -17,13 +17,16 @@ import timm
 import torch
 import torch.nn as nn
 import yaml
-from config_loader import load_config
 from PIL import Image
 from sklearn.metrics import accuracy_score, confusion_matrix, f1_score
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
 from torchvision import transforms
-from torch.utils.data import WeightedRandomSampler
 from tqdm import tqdm
+
+try:
+    from src.training.config_loader import load_config
+except ModuleNotFoundError:  # pragma: no cover - keeps direct script execution working
+    from config_loader import load_config
 
 
 def parse_args():
@@ -69,29 +72,74 @@ def git_commit_sha() -> str:
 def current_utc() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
-def compute_class_weights(labels, num_classes):
-    counts = np.bincount(labels, minlength=num_classes)
-    counts = np.maximum(counts, 1)
 
-    weights = counts.sum() / (num_classes * counts)
-    weights = torch.tensor(weights, dtype=torch.float32)
+def compute_class_weights(
+    labels,
+    num_classes,
+    policy="raw_inverse",
+    clip_min=None,
+    clip_max=None,
+    effective_beta=0.999,
+):
+    counts = np.bincount(labels, minlength=num_classes).astype(np.float64)
+    counts = np.maximum(counts, 1.0)
+    total = counts.sum()
 
-    return weights
+    if policy in {"none", None}:
+        weights = np.ones(num_classes, dtype=np.float64)
+    elif policy in {"raw_inverse", "inverse"}:
+        weights = total / (num_classes * counts)
+    elif policy == "sqrt_inv":
+        weights = np.sqrt(total / (num_classes * counts))
+    elif policy == "effective_num":
+        beta = float(effective_beta)
+        weights = (1.0 - beta) / (1.0 - np.power(beta, counts))
+    else:
+        raise ValueError(f"Unsupported class_weight_policy: {policy}")
 
-def build_balanced_sampler(labels, num_classes):
-    counts = np.bincount(labels, minlength=num_classes)
-    counts = np.maximum(counts, 1)
+    if clip_min is not None or clip_max is not None:
+        lower = -np.inf if clip_min is None else float(clip_min)
+        upper = np.inf if clip_max is None else float(clip_max)
+        weights = np.clip(weights, lower, upper)
 
-    class_weights = 1.0 / counts
-    sample_weights = class_weights[labels]
+    weights = weights / weights.mean()
+    return torch.tensor(weights, dtype=torch.float32)
 
-    sampler = WeightedRandomSampler(
-        weights=torch.DoubleTensor(sample_weights),
+
+def build_weighted_sampler(sample_weights):
+    return WeightedRandomSampler(
+        weights=torch.as_tensor(sample_weights, dtype=torch.double),
         num_samples=len(sample_weights),
         replacement=True,
     )
 
-    return sampler
+
+def build_balanced_sampler(labels, num_classes):
+    counts = np.bincount(labels, minlength=num_classes)
+    counts = np.maximum(counts, 1)
+    class_weights = 1.0 / counts
+    return build_weighted_sampler(class_weights[labels])
+
+
+def build_class_aware_mixture_sampler(labels, num_classes, mixture_lambda=0.5):
+    counts = np.bincount(labels, minlength=num_classes).astype(np.float64)
+    counts = np.maximum(counts, 1.0)
+    empirical = counts / counts.sum()
+    uniform = np.full(num_classes, 1.0 / num_classes, dtype=np.float64)
+    class_probs = (1.0 - float(mixture_lambda)) * empirical + float(mixture_lambda) * uniform
+    sample_weights = class_probs[labels] / counts[labels]
+    return build_weighted_sampler(sample_weights)
+
+
+def build_repeat_factor_sampler(labels, num_classes, target_freq=None, repeat_factor_cap=4.0):
+    counts = np.bincount(labels, minlength=num_classes).astype(np.float64)
+    counts = np.maximum(counts, 1.0)
+    freq = counts / counts.sum()
+    target = (1.0 / num_classes) if target_freq is None else float(target_freq)
+    repeat_factors = np.sqrt(target / freq)
+    repeat_factors = np.clip(repeat_factors, 1.0, float(repeat_factor_cap))
+    return build_weighted_sampler(repeat_factors[labels])
+
 
 class RoomDataset(Dataset):
     def __init__(
@@ -102,7 +150,7 @@ class RoomDataset(Dataset):
         label_col,
         transform=None,
         num_classes=20,
-        ratio_policy = None
+        ratio_policy=None,
     ):
         self.df = df.reset_index(drop=True).copy()
         self.images_dir = Path(images_dir)
@@ -120,7 +168,7 @@ class RoomDataset(Dataset):
 
         img_name = row[self.image_col]
         img_path = self.images_dir / img_name
-        
+
         label = int(row[self.label_col])
 
         image = Image.open(img_path).convert("RGB")
@@ -423,6 +471,15 @@ def load_model_from_checkpoint(checkpoint_path, device):
     return model
 
 
+def weighted_batch_loss(loss_per_sample, labels, sample_weights, class_weights=None):
+    weights = torch.ones_like(loss_per_sample, dtype=torch.float32)
+    if class_weights is not None:
+        weights = weights * class_weights[labels]
+    if sample_weights is not None:
+        weights = weights * sample_weights
+    return (loss_per_sample * weights).sum() / weights.sum().clamp_min(1e-12)
+
+
 def train_one_epoch(
     model,
     loader,
@@ -432,6 +489,7 @@ def train_one_epoch(
     scaler=None,
     use_amp=False,
     loss_name="ce",
+    class_weights=None,
 ):
     model.train()
     total_loss = 0.0
@@ -446,9 +504,13 @@ def train_one_epoch(
         with torch.autocast(device_type=device.type, enabled=use_amp):
             outputs = model(images)
 
-            if loss_name == "ratio_ce":
-                loss_per_sample = criterion(outputs, labels)
-                loss = (loss_per_sample * sample_weights).mean()
+            if loss_name == "ratio_ce" or class_weights is not None:
+                loss = weighted_batch_loss(
+                    criterion(outputs, labels),
+                    labels,
+                    sample_weights if loss_name == "ratio_ce" else None,
+                    class_weights=class_weights,
+                )
             else:
                 loss = criterion(outputs, labels)
 
@@ -466,7 +528,16 @@ def train_one_epoch(
 
 
 @torch.no_grad()
-def predict(model, loader, criterion, device, use_amp=False, desc="Eval", loss_name="ce"):
+def predict(
+    model,
+    loader,
+    criterion,
+    device,
+    use_amp=False,
+    desc="Eval",
+    loss_name="ce",
+    class_weights=None,
+):
     model.eval()
     total_loss = 0.0
     all_logits = []
@@ -480,9 +551,13 @@ def predict(model, loader, criterion, device, use_amp=False, desc="Eval", loss_n
         with torch.autocast(device_type=device.type, enabled=use_amp):
             outputs = model(images)
 
-            if loss_name == "ratio_ce":
-                loss_per_sample = criterion(outputs, labels)
-                loss = (loss_per_sample * sample_weights).mean()
+            if loss_name == "ratio_ce" or class_weights is not None:
+                loss = weighted_batch_loss(
+                    criterion(outputs, labels),
+                    labels,
+                    sample_weights if loss_name == "ratio_ce" else None,
+                    class_weights=class_weights,
+                )
             else:
                 loss = criterion(outputs, labels)
 
@@ -581,6 +656,22 @@ def write_metrics_report(
     class_names = class_names_from_splits(splits, num_classes)
     oof_metrics = metrics_from_frame(oof_df, num_classes)
     shadow_metrics = metrics_from_frame(shadow_df, num_classes) if shadow_df is not None else None
+    shadow_present_macro_f1 = None
+    shadow_support = None
+    if shadow_df is not None:
+        present_labels = sorted(int(value) for value in shadow_df["target"].dropna().unique())
+        shadow_present_macro_f1 = float(
+            f1_score(
+                shadow_df["target"].to_numpy(),
+                shadow_df["pred"].to_numpy(),
+                average="macro",
+                labels=present_labels,
+                zero_division=0,
+            )
+        )
+        shadow_support = (
+            shadow_df["target"].value_counts().reindex(range(num_classes), fill_value=0)
+        )
 
     cm_path = output_dir / "confusion_matrix_oof.csv"
     pd.DataFrame(
@@ -655,14 +746,32 @@ def write_metrics_report(
     ]
 
     if shadow_metrics is not None:
+        shadow_rows = []
+        for class_id in range(num_classes):
+            support_value = int(shadow_support.loc[class_id])
+            shadow_rows.append(
+                [
+                    class_id,
+                    class_names[class_id],
+                    support_value,
+                    "yes" if support_value == 0 else "no",
+                ]
+            )
+
         lines.extend(
             [
                 "",
                 "## Shadow Holdout",
                 f"- rows: `{len(shadow_df)}`",
-                f"- macro_f1: `{shadow_metrics['macro_f1']:.6f}`",
+                f"- macro_f1_all_labels: `{shadow_metrics['macro_f1']:.6f}`",
+                f"- macro_f1_present_labels: `{shadow_present_macro_f1:.6f}`",
                 f"- accuracy: `{shadow_metrics['accuracy']:.6f}`",
                 f"- predictions: `{(output_dir / 'shadow_holdout_predictions.parquet').as_posix()}`",
+                "",
+                "### Shadow support by class",
+                markdown_table(
+                    ["class_id", "label", "support", "warning_support_zero"], shadow_rows
+                ),
             ]
         )
 
@@ -756,6 +865,12 @@ def log_mlflow_params(cfg, fold, device, debug):
             "loss": cfg["experiment"]["loss"],
             "sampler": cfg["experiment"]["sampler"],
             "ratio_policy": cfg["experiment"]["ratio_policy"],
+            "class_weight_policy": cfg["experiment"].get("class_weight_policy", "none"),
+            "weight_clip_min": str(cfg["experiment"].get("weight_clip_min")),
+            "weight_clip_max": str(cfg["experiment"].get("weight_clip_max")),
+            "effective_beta": str(cfg["experiment"].get("effective_beta")),
+            "sampler_mixture_lambda": str(cfg["experiment"].get("sampler_mixture_lambda")),
+            "repeat_factor_cap": str(cfg["experiment"].get("repeat_factor_cap")),
             "weak_label_flag": cfg["experiment"]["weak_label_flag"],
             "feature_flags": cfg["experiment"]["feature_flags"],
             "tta_flag": cfg["experiment"]["tta_flag"],
@@ -775,6 +890,8 @@ def log_mlflow_params(cfg, fold, device, debug):
             "loss": cfg["experiment"]["loss"],
             "sampler": cfg["experiment"]["sampler"],
             "ratio_policy": cfg["experiment"]["ratio_policy"],
+            "class_weight_policy": str(cfg["experiment"].get("class_weight_policy", "none")),
+            "sampler_mixture_lambda": str(cfg["experiment"].get("sampler_mixture_lambda")),
             "weak_label_flag": str(cfg["experiment"]["weak_label_flag"]),
             "feature_flags": cfg["experiment"]["feature_flags"],
             "tta_flag": str(cfg["experiment"]["tta_flag"]),
@@ -847,13 +964,30 @@ def run_fold(
 
     num_classes = int(cfg["data"]["num_classes"])
 
+    train_labels = train_df[cfg["data"]["label_col"]].astype(int).values
     train_sampler = None
     train_shuffle = True
 
     if sampler_type == "balanced":
-        train_labels = train_df[cfg["data"]["label_col"]].astype(int).values
         train_sampler = build_balanced_sampler(train_labels, num_classes)
         train_shuffle = False
+    elif sampler_type == "class_aware_mixture":
+        train_sampler = build_class_aware_mixture_sampler(
+            train_labels,
+            num_classes,
+            mixture_lambda=cfg["experiment"].get("sampler_mixture_lambda", 0.5),
+        )
+        train_shuffle = False
+    elif sampler_type == "repeat_factor":
+        train_sampler = build_repeat_factor_sampler(
+            train_labels,
+            num_classes,
+            target_freq=cfg["experiment"].get("repeat_factor_target_freq"),
+            repeat_factor_cap=cfg["experiment"].get("repeat_factor_cap", 4.0),
+        )
+        train_shuffle = False
+    elif sampler_type != "shuffle":
+        raise ValueError(f"Unsupported sampler: {sampler_type}")
 
     train_loader = build_loader(
         train_df,
@@ -897,16 +1031,26 @@ def run_fold(
         model = create_model(cfg, device, debug=args.debug)
 
     class_weights = None
-    if loss_name == "weighted_ce":
-        train_labels = train_df[cfg["data"]["label_col"]].astype(int).values
-        class_weights = compute_class_weights(train_labels, num_classes).to(device)
-        criterion = nn.CrossEntropyLoss(weight=class_weights)
+    class_weight_policy = cfg["experiment"].get("class_weight_policy", "none")
+    if loss_name == "weighted_ce" and class_weight_policy == "none":
+        class_weight_policy = "raw_inverse"
 
-    elif loss_name == "ratio_ce":
-        criterion = nn.CrossEntropyLoss(reduction="none")
+    label_smoothing = get_label_smoothing(cfg)
+    if class_weight_policy != "none":
+        class_weights = compute_class_weights(
+            train_labels,
+            num_classes,
+            policy=class_weight_policy,
+            clip_min=cfg["experiment"].get("weight_clip_min"),
+            clip_max=cfg["experiment"].get("weight_clip_max"),
+            effective_beta=cfg["experiment"].get("effective_beta", 0.999),
+        ).to(device)
+        print("Class weights:", class_weights.detach().cpu().numpy().round(4).tolist())
 
+    if loss_name == "ratio_ce" or class_weights is not None:
+        criterion = nn.CrossEntropyLoss(reduction="none", label_smoothing=label_smoothing)
     else:
-        criterion = nn.CrossEntropyLoss()
+        criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
 
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -935,6 +1079,7 @@ def run_fold(
                 scaler=scaler,
                 use_amp=use_amp,
                 loss_name=loss_name,
+                class_weights=class_weights,
             )
             val_result = predict(
                 model=model,
@@ -944,6 +1089,7 @@ def run_fold(
                 use_amp=use_amp,
                 desc="Eval",
                 loss_name=loss_name,
+                class_weights=class_weights,
             )
 
             print(
@@ -986,6 +1132,7 @@ def run_fold(
             use_amp=use_amp,
             desc="OOF",
             loss_name=loss_name,
+            class_weights=class_weights,
         )
         shadow_result = predict(
             model=model,
@@ -995,6 +1142,7 @@ def run_fold(
             use_amp=use_amp,
             desc="Shadow",
             loss_name=loss_name,
+            class_weights=class_weights,
         )
 
         oof_frame = prediction_frame(valid_df, oof_result, cfg["data"]["num_classes"])
