@@ -2,7 +2,7 @@
 
 ## Inputs and policy
 - version: `splits_v1`
-- timestamp_utc: `2026-04-26T16:19:30Z`
+- timestamp_utc: `2026-05-01T16:43:43Z`
 - train_csv: `data/raw/train_df.csv`
 - val_csv: `data/raw/val_df.csv`
 - n_folds: `5`
@@ -24,7 +24,7 @@
 | dataset | removed_image_id_ext_rows | duplicate_image_url_rows | rows_after_filters |
 | --- | --- | --- | --- |
 | train_df | 0 | 0 | 4562 |
-| val_df | 0 | 0 | 477 |
+| val_df | 0 | 0 | 500 |
 
 ## Manifest integration
 - used_manifest: `True`
@@ -33,14 +33,14 @@
 - manifest_hash_source_column: `hash_sha256`
 - manifest_duplicate_image_id_ext_rows: `0`
 - train_status_counts: `{'ok': 4562}`
-- val_status_counts: `{'missing': 23, 'ok': 477}`
+- val_status_counts: `{'ok': 500}`
 - hash_overlap_train_vs_shadow_holdout: `0`
 - hash_overlap_across_folds: `0`
 
 ## Shadow holdout
 - `val_df` fixed as `separate_shadow_holdout`.
-- rows_in_shadow_holdout_after_filters: `477`
-- item_groups_in_shadow_holdout_after_filters: `357`
+- rows_in_shadow_holdout_after_filters: `500`
+- item_groups_in_shadow_holdout_after_filters: `380`
 
 ## Fold summary
 | fold | validation_rows | validation_item_groups | training_rows | training_item_groups |

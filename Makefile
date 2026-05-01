@@ -1,4 +1,4 @@
-.PHONY: setup lint test smoke-train train infer validate-submission weak-labels-v1 weak-images-v1 format pre-commit-install mlflow-ui
+.PHONY: setup lint test repair-images manifest splits prepare-data smoke-train train train-all infer validate-submission weak-labels-v1 weak-images-v1 format pre-commit-install mlflow-ui
 
 UV ?= uv
 CONFIG ?= configs/model/image_baseline_v1.yaml
@@ -15,18 +15,25 @@ lint:
 test:
 	$(UV) run pytest
 
-splits:
-	$(UV) run python scripts/data02_build_splits.py
+repair-images:
+	$(UV) run python src/datasets/repair_image_filename_mismatches.py
 
-manifest:
+manifest: repair-images
 	$(UV) run python src/datasets/make_manifest.py
 
+splits: manifest
+	$(UV) run python scripts/data02_build_splits.py
 
-smoke-train:
+prepare-data: splits
+
+smoke-train: prepare-data
 	$(UV) run python src/training/train_image.py --config $(CONFIG) --fold $(FOLD) --debug
 
-train:
+train: prepare-data
 	$(UV) run python src/training/train_image.py --config $(CONFIG) --fold $(FOLD)
+
+train-all: prepare-data
+	$(UV) run python src/training/train_image.py --config $(CONFIG) --all-folds
 
 infer:
 	$(UV) run python -m src.inference.predict --config $(RELEASE_CONFIG)
