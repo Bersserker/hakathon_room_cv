@@ -288,11 +288,26 @@ class RoomDataset(Dataset):
 
 def get_device(cfg):
     requested = cfg["train"].get("device", "cuda")
+    allow_fallback = bool(cfg["train"].get("allow_device_fallback", True))
     if requested == "cuda" and torch.cuda.is_available():
         return torch.device("cuda")
     if requested == "mps" and torch.backends.mps.is_available():
         return torch.device("mps")
+    if requested == "cpu":
+        return torch.device("cpu")
+    if not allow_fallback:
+        raise RuntimeError(f"Requested device '{requested}' is unavailable")
     return torch.device("cpu")
+
+
+def metric_improved(current: float, best: float | None, mode: str, min_delta: float) -> bool:
+    if best is None:
+        return True
+    if mode == "max":
+        return current > best + min_delta
+    if mode == "min":
+        return current < best - min_delta
+    raise ValueError(f"Unsupported early stopping mode: {mode}")
 
 
 def pair(value: Any, name: str) -> tuple[float, float]:
@@ -1020,6 +1035,11 @@ def log_mlflow_params(cfg, fold, device, debug):
             "augmentation_library": cfg.get("augmentation", {}).get("library", "torchvision"),
             "augmentation_policy": cfg.get("augmentation", {}).get("policy", "baseline_v1"),
             "label_smoothing": get_label_smoothing(cfg),
+            "early_stopping_enabled": bool(cfg.get("early_stopping", {}).get("enabled", False)),
+            "early_stopping_patience": str(cfg.get("early_stopping", {}).get("patience")),
+            "early_stopping_min_delta": str(cfg.get("early_stopping", {}).get("min_delta")),
+            "early_stopping_monitor": str(cfg.get("early_stopping", {}).get("monitor")),
+            "early_stopping_mode": str(cfg.get("early_stopping", {}).get("mode")),
         }
     )
     mlflow.set_tags(
@@ -1221,7 +1241,25 @@ def run_fold(
 
     use_amp = bool(cfg["train"]["amp"]) and device.type == "cuda"
     scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
+
+    early_stopping = cfg.get("early_stopping", {}) or {}
+    early_stopping_enabled = bool(early_stopping.get("enabled", False))
+    early_stopping_patience = int(early_stopping.get("patience", 0))
+    early_stopping_min_delta = float(early_stopping.get("min_delta", 0.0))
+    monitor_metric = early_stopping.get(
+        "monitor", cfg.get("checkpoint", {}).get("monitor", "val_macro_f1")
+    )
+    monitor_mode = early_stopping.get(
+        "mode", "min" if str(monitor_metric).endswith("loss") else "max"
+    )
+    if monitor_mode not in {"max", "min"}:
+        raise ValueError(f"Unsupported early stopping mode: {monitor_mode}")
+    if early_stopping_enabled and early_stopping_patience < 1:
+        raise ValueError("early_stopping.patience must be >= 1 when enabled")
+
+    best_score = None
     best_f1 = -1.0
+    epochs_without_improvement = 0
 
     with mlflow.start_run(
         experiment_id=experiment_id,
@@ -1267,8 +1305,19 @@ def run_fold(
             mlflow.log_metric("val_macro_f1", val_result["macro_f1"], step=epoch)
             mlflow.log_metric("val_accuracy", val_result["accuracy"], step=epoch)
 
-            if val_result["macro_f1"] > best_f1:
-                best_f1 = val_result["macro_f1"]
+            monitor_values = {
+                "val_loss": float(val_result["loss"]),
+                "val_macro_f1": float(val_result["macro_f1"]),
+                "val_accuracy": float(val_result["accuracy"]),
+            }
+            if monitor_metric not in monitor_values:
+                raise ValueError(f"Unsupported monitor metric: {monitor_metric}")
+            current_score = monitor_values[monitor_metric]
+
+            if metric_improved(current_score, best_score, monitor_mode, early_stopping_min_delta):
+                best_score = current_score
+                best_f1 = float(val_result["macro_f1"])
+                epochs_without_improvement = 0
                 torch.save(
                     {
                         "model_state_dict": model.state_dict(),
@@ -1277,14 +1326,31 @@ def run_fold(
                         "fold": fold,
                         "epoch": epoch,
                         "best_f1": best_f1,
+                        "best_score": best_score,
+                        "monitor_metric": monitor_metric,
                         "config": cfg,
                     },
                     ckpt_path,
                 )
                 safe_log_artifact(ckpt_path, artifact_path="checkpoints")
                 print(f"Saved best checkpoint: {ckpt_path}")
+            else:
+                epochs_without_improvement += 1
+                if early_stopping_enabled:
+                    print(
+                        "Early stopping wait: "
+                        f"{epochs_without_improvement}/{early_stopping_patience}"
+                    )
+                    if epochs_without_improvement >= early_stopping_patience:
+                        stopped_epoch = epoch + 1
+                        mlflow.log_metric("early_stopping_epoch", stopped_epoch, step=epoch)
+                        mlflow.set_tag("early_stopped", "true")
+                        print(f"Early stopping at epoch {stopped_epoch}")
+                        break
 
         mlflow.log_metric("best_val_macro_f1", best_f1)
+        if best_score is not None and monitor_metric != "val_macro_f1":
+            mlflow.log_metric(f"best_{monitor_metric}", best_score)
 
         model = load_model_from_checkpoint(ckpt_path, device)
         oof_result = predict(
