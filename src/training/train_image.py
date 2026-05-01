@@ -73,6 +73,17 @@ def current_utc() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def compute_effective_class_counts(
+    df: pd.DataFrame, label_col: str, sample_weight_col: str | None = None
+) -> pd.Series:
+    labels = df[label_col].astype(int)
+    if sample_weight_col and sample_weight_col in df.columns:
+        weights = pd.to_numeric(df[sample_weight_col], errors="coerce").fillna(1.0)
+    else:
+        weights = pd.Series(1.0, index=df.index)
+    return weights.groupby(labels).sum().sort_index()
+
+
 def compute_class_weights(
     labels,
     num_classes,
@@ -80,10 +91,13 @@ def compute_class_weights(
     clip_min=None,
     clip_max=None,
     effective_beta=0.999,
+    sample_weights=None,
 ):
+    labels = np.asarray(labels, dtype=np.int64)
     counts = np.bincount(labels, minlength=num_classes).astype(np.float64)
     counts = np.maximum(counts, 1.0)
     total = counts.sum()
+    normalize = True
 
     if policy in {"none", None}:
         weights = np.ones(num_classes, dtype=np.float64)
@@ -94,6 +108,20 @@ def compute_class_weights(
     elif policy == "effective_num":
         beta = float(effective_beta)
         weights = (1.0 - beta) / (1.0 - np.power(beta, counts))
+    elif policy == "sqrt_median_effective":
+        normalize = False
+        if sample_weights is None:
+            effective_counts = np.bincount(labels, minlength=num_classes).astype(np.float64)
+        else:
+            sample_weights = np.asarray(sample_weights, dtype=np.float64)
+            effective_counts = np.bincount(
+                labels,
+                weights=sample_weights,
+                minlength=num_classes,
+            ).astype(np.float64)
+        positive_counts = effective_counts[effective_counts > 0]
+        median_count = float(np.median(positive_counts)) if len(positive_counts) else 1.0
+        weights = np.sqrt(median_count / np.maximum(effective_counts, 1e-12))
     else:
         raise ValueError(f"Unsupported class_weight_policy: {policy}")
 
@@ -102,7 +130,8 @@ def compute_class_weights(
         upper = np.inf if clip_max is None else float(clip_max)
         weights = np.clip(weights, lower, upper)
 
-    weights = weights / weights.mean()
+    if normalize:
+        weights = weights / weights.mean()
     return torch.tensor(weights, dtype=torch.float32)
 
 
@@ -141,6 +170,69 @@ def build_repeat_factor_sampler(labels, num_classes, target_freq=None, repeat_fa
     return build_weighted_sampler(repeat_factors[labels])
 
 
+def resolve_sample_weight_policy(cfg: dict[str, Any]) -> str:
+    policy = cfg.get("experiment", {}).get("sample_weight_policy")
+    if policy is not None:
+        return str(policy)
+    if cfg.get("experiment", {}).get("loss") == "ratio_ce":
+        return "ratio"
+    return "none"
+
+
+def ratio_weight_from_row(row, ratio_policy: str | None) -> float:
+    ratio = float(row["ratio"]) if "ratio" in row.index and not pd.isna(row["ratio"]) else 1.0
+    if ratio_policy == "clip_075_100":
+        return float(np.clip(ratio, 0.75, 1.0))
+    return 1.0
+
+
+def source_weight_from_row(row, sample_weight_policy: str, weak_weight: float) -> float:
+    if sample_weight_policy not in {"source", "source_x_ratio"}:
+        return 1.0
+    if "weak_weight" in row.index and not pd.isna(row["weak_weight"]):
+        return float(row["weak_weight"])
+    source_dataset = str(row.get("source_dataset", "")) if hasattr(row, "get") else ""
+    if source_dataset.startswith("weak"):
+        return float(weak_weight)
+    return 1.0
+
+
+def row_sample_weight(
+    row,
+    ratio_policy: str | None,
+    sample_weight_policy: str | None,
+    weak_weight: float,
+) -> float:
+    policy = sample_weight_policy or "none"
+    if policy in {"none", "false"}:
+        return 1.0
+    if policy == "ratio":
+        return ratio_weight_from_row(row, ratio_policy)
+    if policy == "source":
+        return source_weight_from_row(row, policy, weak_weight)
+    if policy == "source_x_ratio":
+        return source_weight_from_row(row, policy, weak_weight) * ratio_weight_from_row(
+            row,
+            ratio_policy,
+        )
+    raise ValueError(f"Unsupported sample_weight_policy: {policy}")
+
+
+def add_sample_weight_column(
+    df: pd.DataFrame,
+    ratio_policy: str | None,
+    sample_weight_policy: str | None,
+    weak_weight: float,
+    column: str = "sample_weight",
+) -> pd.DataFrame:
+    result = df.copy()
+    result[column] = result.apply(
+        lambda row: row_sample_weight(row, ratio_policy, sample_weight_policy, weak_weight),
+        axis=1,
+    )
+    return result
+
+
 class RoomDataset(Dataset):
     def __init__(
         self,
@@ -151,6 +243,8 @@ class RoomDataset(Dataset):
         transform=None,
         num_classes=20,
         ratio_policy=None,
+        sample_weight_policy="none",
+        weak_weight=0.35,
     ):
         self.df = df.reset_index(drop=True).copy()
         self.images_dir = Path(images_dir)
@@ -159,6 +253,8 @@ class RoomDataset(Dataset):
         self.transform = transform
         self.num_classes = num_classes
         self.ratio_policy = ratio_policy
+        self.sample_weight_policy = sample_weight_policy
+        self.weak_weight = float(weak_weight)
 
     def __len__(self):
         return len(self.df)
@@ -167,7 +263,11 @@ class RoomDataset(Dataset):
         row = self.df.iloc[idx]
 
         img_name = row[self.image_col]
-        img_path = self.images_dir / img_name
+        local_path = row.get("local_path") if "local_path" in row.index else None
+        if local_path is not None and not pd.isna(local_path) and Path(str(local_path)).exists():
+            img_path = Path(str(local_path))
+        else:
+            img_path = self.images_dir / str(img_name)
 
         label = int(row[self.label_col])
 
@@ -176,15 +276,12 @@ class RoomDataset(Dataset):
         if self.transform is not None:
             image = self.transform(image)
 
-        if "ratio" in row.index:
-            ratio = float(row["ratio"])
-        else:
-            ratio = 1.0
-
-        if self.ratio_policy == "clip_075_100":
-            sample_weight = np.clip(ratio, 0.75, 1.0)
-        else:
-            sample_weight = 1.0
+        sample_weight = row_sample_weight(
+            row,
+            ratio_policy=self.ratio_policy,
+            sample_weight_policy=self.sample_weight_policy,
+            weak_weight=self.weak_weight,
+        )
 
         return image, label, torch.tensor(sample_weight, dtype=torch.float32)
 
@@ -411,6 +508,41 @@ def build_fold_frames(splits: dict[str, Any], fold: int) -> tuple[pd.DataFrame, 
     return records_to_df(train_records), records_to_df(valid_records)
 
 
+def load_weak_manifest_for_training(path: str | Path, cfg: dict[str, Any]) -> pd.DataFrame:
+    weak = pd.read_csv(path)
+    required = {"image_id_ext", "class_id", "label", "weak_weight", "selected_local_path"}
+    missing = sorted(required.difference(weak.columns))
+    if missing:
+        raise ValueError(f"Weak manifest {path} missing required columns: {missing}")
+
+    weak = weak.copy()
+    weak["image_id_ext"] = weak["image_id_ext"].map(normalize_image_id_ext)
+    weak[cfg["data"].get("label_col", "result")] = weak["class_id"].astype(int)
+    weak["result"] = weak["class_id"].astype(int)
+    weak["local_path"] = weak["selected_local_path"]
+    weak["source_dataset"] = weak.get("source_dataset", "weak_images_v1")
+    weak["ratio"] = 1.0
+    weak["item_id"] = "weak_" + weak["image_id_ext"].astype(str)
+    if "hash_sha256" in weak.columns:
+        weak["content_hash"] = weak["hash_sha256"]
+    return weak.reset_index(drop=True)
+
+
+def build_train_frame_with_optional_weak(
+    splits: dict[str, Any], fold: int, cfg: dict[str, Any]
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    train_df, valid_df = build_fold_frames(splits, fold)
+    if not cfg.get("experiment", {}).get("weak_label_flag", False):
+        return train_df, valid_df
+
+    weak_manifest = cfg.get("data", {}).get("weak_manifest")
+    if not weak_manifest:
+        raise ValueError("experiment.weak_label_flag=true requires data.weak_manifest")
+    weak_df = load_weak_manifest_for_training(weak_manifest, cfg)
+    train_df = pd.concat([train_df, weak_df], ignore_index=True, sort=False)
+    return train_df.reset_index(drop=True), valid_df
+
+
 def build_loader(
     df,
     images_dir,
@@ -420,6 +552,7 @@ def build_loader(
     shuffle=False,
     sampler=None,
     ratio_policy="none",
+    sample_weight_policy="none",
 ):
     dataset = RoomDataset(
         df=df,
@@ -429,6 +562,8 @@ def build_loader(
         transform=transform,
         num_classes=cfg["data"]["num_classes"],
         ratio_policy=ratio_policy,
+        sample_weight_policy=sample_weight_policy,
+        weak_weight=cfg["experiment"].get("weak_weight", 0.35),
     )
 
     return DataLoader(
@@ -490,6 +625,7 @@ def train_one_epoch(
     use_amp=False,
     loss_name="ce",
     class_weights=None,
+    use_sample_weights=False,
 ):
     model.train()
     total_loss = 0.0
@@ -504,11 +640,11 @@ def train_one_epoch(
         with torch.autocast(device_type=device.type, enabled=use_amp):
             outputs = model(images)
 
-            if loss_name == "ratio_ce" or class_weights is not None:
+            if use_sample_weights or class_weights is not None:
                 loss = weighted_batch_loss(
                     criterion(outputs, labels),
                     labels,
-                    sample_weights if loss_name == "ratio_ce" else None,
+                    sample_weights if use_sample_weights else None,
                     class_weights=class_weights,
                 )
             else:
@@ -537,6 +673,7 @@ def predict(
     desc="Eval",
     loss_name="ce",
     class_weights=None,
+    use_sample_weights=False,
 ):
     model.eval()
     total_loss = 0.0
@@ -551,11 +688,11 @@ def predict(
         with torch.autocast(device_type=device.type, enabled=use_amp):
             outputs = model(images)
 
-            if loss_name == "ratio_ce" or class_weights is not None:
+            if use_sample_weights or class_weights is not None:
                 loss = weighted_batch_loss(
                     criterion(outputs, labels),
                     labels,
-                    sample_weights if loss_name == "ratio_ce" else None,
+                    sample_weights if use_sample_weights else None,
                     class_weights=class_weights,
                 )
             else:
@@ -866,6 +1003,12 @@ def log_mlflow_params(cfg, fold, device, debug):
             "sampler": cfg["experiment"]["sampler"],
             "ratio_policy": cfg["experiment"]["ratio_policy"],
             "class_weight_policy": cfg["experiment"].get("class_weight_policy", "none"),
+            "sample_weight_policy": resolve_sample_weight_policy(cfg),
+            "weak_manifest": str(cfg["data"].get("weak_manifest")),
+            "weak_manifest_version": str(cfg["experiment"].get("weak_manifest_version")),
+            "weak_weight": str(cfg["experiment"].get("weak_weight")),
+            "max_added_per_class": str(cfg["experiment"].get("max_added_per_class")),
+            "effective_count_policy": str(cfg["experiment"].get("class_weight_policy", "none")),
             "weight_clip_min": str(cfg["experiment"].get("weight_clip_min")),
             "weight_clip_max": str(cfg["experiment"].get("weight_clip_max")),
             "effective_beta": str(cfg["experiment"].get("effective_beta")),
@@ -890,7 +1033,9 @@ def log_mlflow_params(cfg, fold, device, debug):
             "loss": cfg["experiment"]["loss"],
             "sampler": cfg["experiment"]["sampler"],
             "ratio_policy": cfg["experiment"]["ratio_policy"],
+            "sample_weight_policy": resolve_sample_weight_policy(cfg),
             "class_weight_policy": str(cfg["experiment"].get("class_weight_policy", "none")),
+            "weak_manifest_version": str(cfg["experiment"].get("weak_manifest_version")),
             "sampler_mixture_lambda": str(cfg["experiment"].get("sampler_mixture_lambda")),
             "weak_label_flag": str(cfg["experiment"]["weak_label_flag"]),
             "feature_flags": cfg["experiment"]["feature_flags"],
@@ -944,7 +1089,7 @@ def run_fold(
     print(f"Device: {device}")
     print(f"Fold: {fold}")
 
-    train_df, valid_df = build_fold_frames(splits, fold)
+    train_df, valid_df = build_train_frame_with_optional_weak(splits, fold, cfg)
     valid_df["fold"] = fold
     shadow_df = records_to_df(splits["shadow_holdout"]["records"])
     shadow_df["fold"] = fold
@@ -961,6 +1106,7 @@ def run_fold(
     loss_name = cfg["experiment"].get("loss", "ce")
     sampler_type = cfg["experiment"].get("sampler", "shuffle")
     ratio_policy = cfg["experiment"].get("ratio_policy", "none")
+    sample_weight_policy = resolve_sample_weight_policy(cfg)
 
     num_classes = int(cfg["data"]["num_classes"])
 
@@ -998,6 +1144,7 @@ def run_fold(
         shuffle=train_shuffle,
         sampler=train_sampler,
         ratio_policy=ratio_policy,
+        sample_weight_policy=sample_weight_policy,
     )
 
     valid_loader = build_loader(
@@ -1009,6 +1156,7 @@ def run_fold(
         shuffle=False,
         sampler=None,
         ratio_policy="none",
+        sample_weight_policy="none",
     )
 
     shadow_loader = build_loader(
@@ -1020,6 +1168,7 @@ def run_fold(
         shuffle=False,
         sampler=None,
         ratio_policy="none",
+        sample_weight_policy="none",
     )
 
     ckpt_path = checkpoint_path(cfg, fold)
@@ -1036,6 +1185,16 @@ def run_fold(
         class_weight_policy = "raw_inverse"
 
     label_smoothing = get_label_smoothing(cfg)
+    train_sample_weights = None
+    if sample_weight_policy != "none":
+        weighted_train_df = add_sample_weight_column(
+            train_df,
+            ratio_policy=ratio_policy,
+            sample_weight_policy=sample_weight_policy,
+            weak_weight=cfg["experiment"].get("weak_weight", 0.35),
+        )
+        train_sample_weights = weighted_train_df["sample_weight"].to_numpy(dtype=np.float64)
+
     if class_weight_policy != "none":
         class_weights = compute_class_weights(
             train_labels,
@@ -1044,10 +1203,12 @@ def run_fold(
             clip_min=cfg["experiment"].get("weight_clip_min"),
             clip_max=cfg["experiment"].get("weight_clip_max"),
             effective_beta=cfg["experiment"].get("effective_beta", 0.999),
+            sample_weights=train_sample_weights,
         ).to(device)
         print("Class weights:", class_weights.detach().cpu().numpy().round(4).tolist())
 
-    if loss_name == "ratio_ce" or class_weights is not None:
+    use_sample_weights = sample_weight_policy != "none"
+    if use_sample_weights or class_weights is not None:
         criterion = nn.CrossEntropyLoss(reduction="none", label_smoothing=label_smoothing)
     else:
         criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
@@ -1080,6 +1241,7 @@ def run_fold(
                 use_amp=use_amp,
                 loss_name=loss_name,
                 class_weights=class_weights,
+                use_sample_weights=use_sample_weights,
             )
             val_result = predict(
                 model=model,
@@ -1090,6 +1252,7 @@ def run_fold(
                 desc="Eval",
                 loss_name=loss_name,
                 class_weights=class_weights,
+                use_sample_weights=use_sample_weights,
             )
 
             print(
@@ -1133,6 +1296,7 @@ def run_fold(
             desc="OOF",
             loss_name=loss_name,
             class_weights=class_weights,
+            use_sample_weights=use_sample_weights,
         )
         shadow_result = predict(
             model=model,
@@ -1143,6 +1307,7 @@ def run_fold(
             desc="Shadow",
             loss_name=loss_name,
             class_weights=class_weights,
+            use_sample_weights=use_sample_weights,
         )
 
         oof_frame = prediction_frame(valid_df, oof_result, cfg["data"]["num_classes"])
