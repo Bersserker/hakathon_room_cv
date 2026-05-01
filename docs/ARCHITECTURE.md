@@ -98,6 +98,25 @@ Core module: `src/datasets/weak_labels_v1.py`.
 
 Weak labels проходят дедупликацию и audit, но не включены в RC1 по умолчанию.
 
+### Weak images v1
+
+Entry point:
+
+```bash
+make weak-images-v1
+```
+
+Core module: `src/datasets/weak_images_v1.py`.
+
+Pipeline читает heuristic CSV и legacy image folder, применяет hard gates (`max_texts`, `person_found`, `is_catalog`, min size), удаляет leakage по `image_id_ext`/`sha256`, дедуплицирует weak-кандидаты, выбирает top-N по class quotas и копирует curated subset в `data/raw/weak_images/weak_images/`.
+
+Выходы:
+
+- `data/processed/weak_downloaded_v1.csv` — manifest для train-only injection;
+- `reports/weak_images_download_report.md` — counts по drop reasons и selected rows.
+
+Training включает эти rows только при `experiment.weak_label_flag: true`; valid/shadow/OOF остаются на original split rows.
+
 ## Training layer
 
 Entry point:
