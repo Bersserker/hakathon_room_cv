@@ -112,3 +112,4 @@ config.json  # если содержит API‑ключи и т. п.
 
 
 artifacts/logs/*
+*.db

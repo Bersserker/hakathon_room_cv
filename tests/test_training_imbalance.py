@@ -12,6 +12,7 @@ from src.training.train_image import (
     build_train_frame_with_optional_weak,
     compute_class_weights,
     compute_effective_class_counts,
+    metric_improved,
     weighted_batch_loss,
 )
 
@@ -38,6 +39,14 @@ def test_class_aware_mixture_sampler_gives_rare_class_more_weight_per_sample():
 
     weights = sampler.weights.numpy()
     assert weights[-1] > weights[0]
+
+
+def test_metric_improved_respects_mode_and_min_delta():
+    assert metric_improved(0.62, None, "max", 0.001)
+    assert metric_improved(0.622, 0.62, "max", 0.001)
+    assert not metric_improved(0.6205, 0.62, "max", 0.001)
+    assert metric_improved(0.9, 1.0, "min", 0.05)
+    assert not metric_improved(0.98, 1.0, "min", 0.05)
 
 
 def test_weighted_batch_loss_normalizes_by_sum_of_weights():
