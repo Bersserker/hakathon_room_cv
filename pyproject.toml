@@ -65,24 +65,24 @@ package-mode = false
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
-torch = { version = ">=2.6", optional = true, source = "pytorch-cu126", markers = "sys_platform == 'linux' or sys_platform == 'win32'" }
-torchvision = { version = ">=0.21", optional = true, source = "pytorch-cu126", markers = "sys_platform == 'linux' or sys_platform == 'win32'" }
-torchaudio = { version = ">=2.6", optional = true, source = "pytorch-cu126", markers = "sys_platform == 'linux' or sys_platform == 'win32'" }
+torch = { version = ">=2.6", optional = true, source = "pytorch-cu128", markers = "sys_platform == 'linux' or sys_platform == 'win32'" }
+torchvision = { version = ">=0.21", optional = true, source = "pytorch-cu128", markers = "sys_platform == 'linux' or sys_platform == 'win32'" }
+torchaudio = { version = ">=2.6", optional = true, source = "pytorch-cu128", markers = "sys_platform == 'linux' or sys_platform == 'win32'" }
 
 [[tool.poetry.source]]
-name = "pytorch-cu126"
-url = "https://download.pytorch.org/whl/cu126"
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
 priority = "explicit"
 
 [tool.uv]
 package = false
 
 [tool.uv.sources]
-torch = [{ index = "pytorch-cu126", marker = "sys_platform == 'linux' or sys_platform == 'win32'" }]
-torchvision = [{ index = "pytorch-cu126", marker = "sys_platform == 'linux' or sys_platform == 'win32'" }]
-torchaudio = [{ index = "pytorch-cu126", marker = "sys_platform == 'linux' or sys_platform == 'win32'" }]
+torch = [{ index = "pytorch-cu128", marker = "sys_platform == 'linux' or sys_platform == 'win32'" }]
+torchvision = [{ index = "pytorch-cu128", marker = "sys_platform == 'linux' or sys_platform == 'win32'" }]
+torchaudio = [{ index = "pytorch-cu128", marker = "sys_platform == 'linux' or sys_platform == 'win32'" }]
 
 [[tool.uv.index]]
-name = "pytorch-cu126"
-url = "https://download.pytorch.org/whl/cu126"
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
 explicit = true
