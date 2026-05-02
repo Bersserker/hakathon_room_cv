@@ -32,6 +32,7 @@ dependencies = [
   "ipykernel>=6.29",
   "transformers>=4.25.0",
   "mlflow>=3.11.1",
+  "open-clip-torch>=3.3.0",
 ]
 
 [project.optional-dependencies]
