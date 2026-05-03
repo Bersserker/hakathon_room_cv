@@ -1,15 +1,15 @@
 # DATA-03 Label Quality / Ratio Audit
 
 ## Входы и фиксация split
-- generated_at_utc: `2026-04-26T16:42:28Z`
+- generated_at_utc: `2026-05-03T06:37:30Z`
 - train_csv: `data/raw/train_df.csv`
 - val_csv: `data/raw/val_df.csv`
 - splits_json: `data/splits/splits_v1.json`
 - split_version: `splits_v1`
-- split_timestamp_utc: `2026-04-26T16:19:30Z`
+- split_timestamp_utc: `2026-05-03T06:37:27Z`
 - safe_split: `separate_shadow_holdout` via `StratifiedGroupKFold` on `item_id_content_hash_component` with `5` folds
 - safe_split_reason: safe default: keep original val_df outside train k-folds to avoid tuning leakage
-- split_rows: train_pool=4562, shadow_holdout=477, total_labeled=5062
+- split_rows: train_pool=4562, shadow_holdout=500, total_labeled=5062
 
 ## Ключевые выводы
 - Размеченных изображений: `5062`.
