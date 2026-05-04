@@ -2,9 +2,9 @@
 
 ## Inputs and policy
 - version: `splits_v1`
-- timestamp_utc: `2026-04-26T16:19:30Z`
-- train_csv: `data/raw/train_df.csv`
-- val_csv: `data/raw/val_df.csv`
+- timestamp_utc: `2026-05-03T06:02:17Z`
+- train_csv: `data\raw\train_df.csv`
+- val_csv: `data\raw\val_df.csv`
 - n_folds: `5`
 - group_key: `item_id_content_hash_component`
 - splitter: `StratifiedGroupKFold`
@@ -28,7 +28,7 @@
 
 ## Manifest integration
 - used_manifest: `True`
-- manifest_path: `data/processed/data_manifest.parquet`
+- manifest_path: `data\processed\data_manifest.parquet`
 - manifest_exists: `True`
 - manifest_hash_source_column: `hash_sha256`
 - manifest_duplicate_image_id_ext_rows: `0`
@@ -80,5 +80,5 @@
 
 ## Re-run
 ```bash
-python3 scripts/data02_build_splits.py --train-csv data/raw/train_df.csv --val-csv data/raw/val_df.csv --manifest data/processed/data_manifest.parquet --output-json data/splits/splits_v1.json --report-md reports/leakage_report.md --n-folds 5
+python3 scripts/data02_build_splits.py --train-csv data\raw\train_df.csv --val-csv data\raw\val_df.csv --manifest data\processed\data_manifest.parquet --output-json data\splits\splits_v1.json --report-md reports\leakage_report.md --n-folds 5
 ```

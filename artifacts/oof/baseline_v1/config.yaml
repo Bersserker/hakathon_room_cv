@@ -46,6 +46,10 @@ artifacts:
     mlflow: artifacts/logs/mlruns
   oof_dir: artifacts/oof/baseline_v1
   report_path: reports/baseline_metrics_v1.md
+augmentation:
+  library: torchvision
+  policy: baseline_v1
+  label_smoothing: 0.0
 experiment:
   version: v01
   loss: ce

@@ -66,8 +66,9 @@ models/  # добавлено: игнорируем папку models/ на лю
 *.joblib
 
 # === Логи и метрики ===
-*.log
-/logs/
+
+**/logs/
+!logs/
 /runs/  # TensorBoard, Weights & Biases и т. д.
 /mlruns/  # MLflow
 

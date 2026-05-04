@@ -22,27 +22,27 @@
 | reason | rows |
 | --- | --- |
 | corrupted_image | 0 |
-| duplicate_hash_sha256 | 7162 |
-| duplicate_image_id_ext | 82 |
+| duplicate_hash_sha256 | 21 |
+| duplicate_image_id_ext | 1 |
 | empty_image_id_ext | 0 |
-| is_catalog | 1723 |
-| leakage_hash_sha256 | 74 |
+| is_catalog | 0 |
+| leakage_hash_sha256 | 0 |
 | leakage_image_id_ext | 0 |
-| max_texts | 34786 |
-| missing_image | 141 |
-| person_found | 58 |
-| quota | 5854 |
+| max_texts | 428 |
+| missing_image | 49753 |
+| person_found | 2 |
+| quota | 0 |
 | small_image | 0 |
 
 ## Selection
-- rows_after_gates: `13558`
-- rows_after_dedup: `6314`
-- selected_rows: `460`
+- rows_after_gates: `157`
+- rows_after_dedup: `135`
+- selected_rows: `135`
 - output_image_dir: `data/raw/weak_images/weak_images`
 
 ## Selected rows by class
 | class_id | rows |
 | --- | --- |
-| 11 | 200 |
-| 5 | 180 |
-| 6 | 80 |
+| 11 | 47 |
+| 5 | 65 |
+| 6 | 23 |
