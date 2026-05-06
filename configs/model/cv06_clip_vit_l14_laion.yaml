@@ -1,0 +1,74 @@
+data:
+  images_train_dir: data/raw/train_images/train_images
+  images_val_dir: data/raw/val_images/val_images
+  images_test_dir: data/raw/test_images/test_images
+  images_csv_path: data/raw
+  train_df: data/raw/train_df.csv
+  test_df: data/raw/test_df.csv
+  val_df: data/raw/val_df.csv
+  splits_json: data/splits/splits_v1.json
+  dataset_version: ds_main_v1
+  split_version: splits_v1
+  image_col: image_id_ext
+  label_col: result
+  num_classes: 20
+  image_size: 224
+  resize_size: 224
+
+model:
+  backbone: clip_vit_l14_laion
+  pretrained: true
+  whitelist:
+    - clip_vit_l14_laion
+
+  clip:
+    model_name: ViT-L-14
+    pretrained_name: laion2b_s32b_b82k
+    freeze_image_encoder: true
+
+train:
+  epochs: 1000
+  batch_size: 4
+  num_workers: 4
+  lr: 0.000005
+  weight_decay: 0.01
+  amp: true
+  seed: 42
+  device: cuda
+  allow_device_fallback: false
+
+early_stopping:
+  enabled: true
+  patience: 10
+  min_delta: 0.001
+  monitor: val_macro_f1
+  mode: max
+
+debug:
+  enabled: false
+  train_samples: 64
+  val_samples: 32
+  epochs: 1
+  num_workers: 0
+
+checkpoint:
+  dir: artifacts/checkpoints
+  monitor: val_macro_f1
+
+artifacts:
+  oof_dir: artifacts/oof/cv06_clip_vit_l14_laion
+  report_path: reports/cv06_clip_vit_l14_laion.md
+
+experiment:
+  version: cv06_clip_vit_l14_laion
+  loss: ce
+  sampler: balanced
+  ratio_policy: none
+  weak_label_flag: false
+  feature_flags: img_clip_l14
+  tta_flag: false
+
+mlflow:
+  tracking_uri: sqlite:///artifacts/logs/mlflow.db
+  experiment_name: room_type_image_clip
+  artifact_root: artifacts/logs/mlruns

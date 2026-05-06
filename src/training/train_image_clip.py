@@ -1,0 +1,1538 @@
+import argparse
+import copy
+import json
+import random
+import re
+import sqlite3
+import subprocess
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+from urllib.parse import urlparse
+
+import mlflow
+import numpy as np
+import pandas as pd
+import timm
+import torch
+import torch.nn as nn
+import yaml
+from PIL import Image
+from sklearn.metrics import accuracy_score, confusion_matrix, f1_score
+from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
+from torchvision import transforms
+from tqdm import tqdm
+
+import open_clip
+
+try:
+    from src.training.config_loader import load_config
+except ModuleNotFoundError:  # pragma: no cover - keeps direct script execution working
+    from config_loader import load_config
+
+class CLIPImageClassifier(nn.Module):
+    def __init__(
+        self,
+        num_classes,
+        model_name="ViT-B-32",
+        pretrained_name="openai",
+        freeze_image_encoder=False,   # 👈 добавить
+    ):
+        super().__init__()
+
+        self.clip_model, _, _ = open_clip.create_model_and_transforms(
+            model_name,
+            pretrained=pretrained_name,
+        )
+
+        # 👇 заморозка энкодера (по желанию)
+        if freeze_image_encoder:
+            for param in self.clip_model.visual.parameters():
+                param.requires_grad = False
+
+        embed_dim = self.clip_model.visual.output_dim
+        self.head = nn.Linear(embed_dim, num_classes)
+
+    def forward(self, x):
+        features = self.clip_model.encode_image(x)
+        features = features.float()
+        return self.head(features)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", type=str, required=True)
+    parser.add_argument("--fold", type=int, default=0)
+    parser.add_argument("--all-folds", action="store_true")
+    parser.add_argument("--debug", action="store_true")
+    return parser.parse_args()
+
+
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+
+def normalize_image_id_ext(value: Any) -> str:
+    if pd.isna(value):
+        return ""
+    text = str(value)
+    if text.endswith(".0"):
+        text = text[:-2]
+    return text if Path(text).suffix else f"{text}.jpg"
+
+
+def slug(value: str) -> str:
+    value = value.replace(".in12k_ft_in1k", "")
+    value = value.replace("convnext_tiny", "convnexttiny")
+    value = value.replace("efficientnet_b0", "efficientnetb0")
+    value = re.sub(r"[^a-zA-Z0-9]+", "", value)
+    return value.lower()
+
+
+def git_commit_sha() -> str:
+    try:
+        return subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], text=True).strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return "unknown"
+
+
+def current_utc() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def compute_effective_class_counts(
+    df: pd.DataFrame, label_col: str, sample_weight_col: str | None = None
+) -> pd.Series:
+    labels = df[label_col].astype(int)
+    if sample_weight_col and sample_weight_col in df.columns:
+        weights = pd.to_numeric(df[sample_weight_col], errors="coerce").fillna(1.0)
+    else:
+        weights = pd.Series(1.0, index=df.index)
+    return weights.groupby(labels).sum().sort_index()
+
+
+def compute_class_weights(
+    labels,
+    num_classes,
+    policy="raw_inverse",
+    clip_min=None,
+    clip_max=None,
+    effective_beta=0.999,
+    sample_weights=None,
+):
+    labels = np.asarray(labels, dtype=np.int64)
+    counts = np.bincount(labels, minlength=num_classes).astype(np.float64)
+    counts = np.maximum(counts, 1.0)
+    total = counts.sum()
+    normalize = True
+
+    if policy in {"none", None}:
+        weights = np.ones(num_classes, dtype=np.float64)
+    elif policy in {"raw_inverse", "inverse"}:
+        weights = total / (num_classes * counts)
+    elif policy == "sqrt_inv":
+        weights = np.sqrt(total / (num_classes * counts))
+    elif policy == "effective_num":
+        beta = float(effective_beta)
+        weights = (1.0 - beta) / (1.0 - np.power(beta, counts))
+    elif policy == "sqrt_median_effective":
+        normalize = False
+        if sample_weights is None:
+            effective_counts = np.bincount(labels, minlength=num_classes).astype(np.float64)
+        else:
+            sample_weights = np.asarray(sample_weights, dtype=np.float64)
+            effective_counts = np.bincount(
+                labels,
+                weights=sample_weights,
+                minlength=num_classes,
+            ).astype(np.float64)
+        positive_counts = effective_counts[effective_counts > 0]
+        median_count = float(np.median(positive_counts)) if len(positive_counts) else 1.0
+        weights = np.sqrt(median_count / np.maximum(effective_counts, 1e-12))
+    else:
+        raise ValueError(f"Unsupported class_weight_policy: {policy}")
+
+    if clip_min is not None or clip_max is not None:
+        lower = -np.inf if clip_min is None else float(clip_min)
+        upper = np.inf if clip_max is None else float(clip_max)
+        weights = np.clip(weights, lower, upper)
+
+    if normalize:
+        weights = weights / weights.mean()
+    return torch.tensor(weights, dtype=torch.float32)
+
+
+def build_weighted_sampler(sample_weights):
+    return WeightedRandomSampler(
+        weights=torch.as_tensor(sample_weights, dtype=torch.double),
+        num_samples=len(sample_weights),
+        replacement=True,
+    )
+
+
+def build_balanced_sampler(labels, num_classes):
+    counts = np.bincount(labels, minlength=num_classes)
+    counts = np.maximum(counts, 1)
+    class_weights = 1.0 / counts
+    return build_weighted_sampler(class_weights[labels])
+
+
+def build_class_aware_mixture_sampler(labels, num_classes, mixture_lambda=0.5):
+    counts = np.bincount(labels, minlength=num_classes).astype(np.float64)
+    counts = np.maximum(counts, 1.0)
+    empirical = counts / counts.sum()
+    uniform = np.full(num_classes, 1.0 / num_classes, dtype=np.float64)
+    class_probs = (1.0 - float(mixture_lambda)) * empirical + float(mixture_lambda) * uniform
+    sample_weights = class_probs[labels] / counts[labels]
+    return build_weighted_sampler(sample_weights)
+
+
+def build_repeat_factor_sampler(labels, num_classes, target_freq=None, repeat_factor_cap=4.0):
+    counts = np.bincount(labels, minlength=num_classes).astype(np.float64)
+    counts = np.maximum(counts, 1.0)
+    freq = counts / counts.sum()
+    target = (1.0 / num_classes) if target_freq is None else float(target_freq)
+    repeat_factors = np.sqrt(target / freq)
+    repeat_factors = np.clip(repeat_factors, 1.0, float(repeat_factor_cap))
+    return build_weighted_sampler(repeat_factors[labels])
+
+
+def resolve_sample_weight_policy(cfg: dict[str, Any]) -> str:
+    policy = cfg.get("experiment", {}).get("sample_weight_policy")
+    if policy is not None:
+        return str(policy)
+    if cfg.get("experiment", {}).get("loss") == "ratio_ce":
+        return "ratio"
+    return "none"
+
+
+def ratio_weight_from_row(row, ratio_policy: str | None) -> float:
+    ratio = float(row["ratio"]) if "ratio" in row.index and not pd.isna(row["ratio"]) else 1.0
+    if ratio_policy == "clip_075_100":
+        return float(np.clip(ratio, 0.75, 1.0))
+    return 1.0
+
+
+def source_weight_from_row(row, sample_weight_policy: str, weak_weight: float) -> float:
+    if sample_weight_policy not in {"source", "source_x_ratio"}:
+        return 1.0
+    if "weak_weight" in row.index and not pd.isna(row["weak_weight"]):
+        return float(row["weak_weight"])
+    source_dataset = str(row.get("source_dataset", "")) if hasattr(row, "get") else ""
+    if source_dataset.startswith("weak"):
+        return float(weak_weight)
+    return 1.0
+
+
+def row_sample_weight(
+    row,
+    ratio_policy: str | None,
+    sample_weight_policy: str | None,
+    weak_weight: float,
+) -> float:
+    policy = sample_weight_policy or "none"
+    if policy in {"none", "false"}:
+        return 1.0
+    if policy == "ratio":
+        return ratio_weight_from_row(row, ratio_policy)
+    if policy == "source":
+        return source_weight_from_row(row, policy, weak_weight)
+    if policy == "source_x_ratio":
+        return source_weight_from_row(row, policy, weak_weight) * ratio_weight_from_row(
+            row,
+            ratio_policy,
+        )
+    raise ValueError(f"Unsupported sample_weight_policy: {policy}")
+
+
+def add_sample_weight_column(
+    df: pd.DataFrame,
+    ratio_policy: str | None,
+    sample_weight_policy: str | None,
+    weak_weight: float,
+    column: str = "sample_weight",
+) -> pd.DataFrame:
+    result = df.copy()
+    result[column] = result.apply(
+        lambda row: row_sample_weight(row, ratio_policy, sample_weight_policy, weak_weight),
+        axis=1,
+    )
+    return result
+
+
+class RoomDataset(Dataset):
+    def __init__(
+        self,
+        df: pd.DataFrame,
+        images_dir,
+        image_col,
+        label_col,
+        transform=None,
+        num_classes=20,
+        ratio_policy=None,
+        sample_weight_policy="none",
+        weak_weight=0.35,
+    ):
+        self.df = df.reset_index(drop=True).copy()
+        self.images_dir = Path(images_dir)
+        self.image_col = image_col
+        self.label_col = label_col
+        self.transform = transform
+        self.num_classes = num_classes
+        self.ratio_policy = ratio_policy
+        self.sample_weight_policy = sample_weight_policy
+        self.weak_weight = float(weak_weight)
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, idx):
+        row = self.df.iloc[idx]
+
+        img_name = row[self.image_col]
+        local_path = row.get("local_path") if "local_path" in row.index else None
+        if local_path is not None and not pd.isna(local_path) and Path(str(local_path)).exists():
+            img_path = Path(str(local_path))
+        else:
+            img_path = self.images_dir / str(img_name)
+
+        label = int(row[self.label_col])
+
+        image = Image.open(img_path).convert("RGB")
+
+        if self.transform is not None:
+            image = self.transform(image)
+
+        sample_weight = row_sample_weight(
+            row,
+            ratio_policy=self.ratio_policy,
+            sample_weight_policy=self.sample_weight_policy,
+            weak_weight=self.weak_weight,
+        )
+
+        return image, label, torch.tensor(sample_weight, dtype=torch.float32)
+
+
+def get_device(cfg):
+    requested = cfg["train"].get("device", "cuda")
+    allow_fallback = bool(cfg["train"].get("allow_device_fallback", True))
+    if requested == "cuda" and torch.cuda.is_available():
+        return torch.device("cuda")
+    if requested == "mps" and torch.backends.mps.is_available():
+        return torch.device("mps")
+    if requested == "cpu":
+        return torch.device("cpu")
+    if not allow_fallback:
+        raise RuntimeError(f"Requested device '{requested}' is unavailable")
+    return torch.device("cpu")
+
+
+def metric_improved(current: float, best: float | None, mode: str, min_delta: float) -> bool:
+    if best is None:
+        return True
+    if mode == "max":
+        return current > best + min_delta
+    if mode == "min":
+        return current < best - min_delta
+    raise ValueError(f"Unsupported early stopping mode: {mode}")
+
+
+def pair(value: Any, name: str) -> tuple[float, float]:
+    if not isinstance(value, (list, tuple)) or len(value) != 2:
+        raise ValueError(f"{name} must contain exactly two values")
+    return float(value[0]), float(value[1])
+
+
+def int_pair(value: Any, name: str) -> tuple[int, int]:
+    if not isinstance(value, (list, tuple)) or len(value) != 2:
+        raise ValueError(f"{name} must contain exactly two values")
+    return int(value[0]), int(value[1])
+
+
+def get_augmentation_cfg(cfg) -> dict[str, Any]:
+    augmentation = cfg.get("augmentation", {})
+    if not isinstance(augmentation, dict):
+        raise ValueError("Config section 'augmentation' must be a mapping")
+    return augmentation
+
+
+class AlbumentationsImageTransform:
+    def __init__(self, transform) -> None:
+        self.transform = transform
+
+    def __call__(self, image: Image.Image) -> torch.Tensor:
+        return self.transform(image=np.array(image))["image"]
+
+
+def get_torchvision_transforms(
+    image_size: int, resize_size: int, augmentation: dict[str, Any], policy: str
+):
+    normalize = transforms.Normalize(
+        mean=[0.485, 0.456, 0.406],
+        std=[0.229, 0.224, 0.225],
+    )
+
+    if policy == "baseline_v1":
+        train_steps = [
+            transforms.Resize((resize_size, resize_size)),
+            transforms.RandomResizedCrop(image_size),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.ColorJitter(0.2, 0.2, 0.2),
+            transforms.ToTensor(),
+            normalize,
+        ]
+    elif policy == "safe_v1":
+        crop_cfg = augmentation.get("random_resized_crop", {})
+        jitter_cfg = augmentation.get("color_jitter", {})
+        erasing_cfg = augmentation.get("random_erasing", {})
+        train_steps = [
+            transforms.Resize((resize_size, resize_size)),
+            transforms.RandomResizedCrop(
+                image_size,
+                scale=pair(crop_cfg.get("scale", [0.75, 1.0]), "random_resized_crop.scale"),
+                ratio=pair(crop_cfg.get("ratio", [0.85, 1.15]), "random_resized_crop.ratio"),
+            ),
+            transforms.RandomHorizontalFlip(p=float(augmentation.get("horizontal_flip_p", 0.5))),
+            transforms.ColorJitter(
+                brightness=float(jitter_cfg.get("brightness", 0.15)),
+                contrast=float(jitter_cfg.get("contrast", 0.15)),
+                saturation=float(jitter_cfg.get("saturation", 0.10)),
+                hue=float(jitter_cfg.get("hue", 0.0)),
+            ),
+            transforms.RandomGrayscale(p=float(augmentation.get("random_grayscale_p", 0.05))),
+            transforms.ToTensor(),
+            normalize,
+            transforms.RandomErasing(
+                p=float(erasing_cfg.get("p", 0.10)),
+                scale=pair(erasing_cfg.get("scale", [0.02, 0.10]), "random_erasing.scale"),
+                ratio=pair(erasing_cfg.get("ratio", [0.3, 3.3]), "random_erasing.ratio"),
+            ),
+        ]
+    else:
+        raise ValueError(f"Unsupported augmentation policy: {policy}")
+
+    train_transform = transforms.Compose(train_steps)
+
+    val_transform = transforms.Compose(
+        [
+            transforms.Resize((resize_size, resize_size)),
+            transforms.CenterCrop(image_size),
+            transforms.ToTensor(),
+            normalize,
+        ]
+    )
+    return train_transform, val_transform
+
+
+def get_albumentations_transforms(
+    image_size: int, resize_size: int, augmentation: dict[str, Any], policy: str
+):
+    if policy != "albumentations_v1":
+        raise ValueError(f"Unsupported albumentations policy: {policy}")
+
+    import albumentations as A
+    import cv2
+    from albumentations.pytorch import ToTensorV2
+
+    crop_cfg = augmentation.get("random_resized_crop", {})
+    brightness_cfg = augmentation.get("random_brightness_contrast", {})
+    hsv_cfg = augmentation.get("hue_saturation_value", {})
+    affine_cfg = augmentation.get("affine", {})
+    dropout_cfg = augmentation.get("coarse_dropout", {})
+
+    train_transform = AlbumentationsImageTransform(
+        A.Compose(
+            [
+                A.RandomResizedCrop(
+                    size=(image_size, image_size),
+                    scale=pair(crop_cfg.get("scale", [0.72, 1.0]), "random_resized_crop.scale"),
+                    ratio=pair(crop_cfg.get("ratio", [0.85, 1.15]), "random_resized_crop.ratio"),
+                ),
+                A.HorizontalFlip(p=float(augmentation.get("horizontal_flip_p", 0.5))),
+                A.RandomBrightnessContrast(
+                    brightness_limit=float(brightness_cfg.get("brightness_limit", 0.15)),
+                    contrast_limit=float(brightness_cfg.get("contrast_limit", 0.15)),
+                    p=float(brightness_cfg.get("p", 0.5)),
+                ),
+                A.HueSaturationValue(
+                    hue_shift_limit=int(hsv_cfg.get("hue_shift_limit", 5)),
+                    sat_shift_limit=int(hsv_cfg.get("sat_shift_limit", 10)),
+                    val_shift_limit=int(hsv_cfg.get("val_shift_limit", 10)),
+                    p=float(hsv_cfg.get("p", 0.25)),
+                ),
+                A.CLAHE(
+                    clip_limit=float(augmentation.get("clahe", {}).get("clip_limit", 2.0)),
+                    p=float(augmentation.get("clahe", {}).get("p", 0.10)),
+                ),
+                A.Affine(
+                    scale=pair(affine_cfg.get("scale", [0.95, 1.05]), "affine.scale"),
+                    translate_percent=pair(
+                        affine_cfg.get("translate_percent", [-0.03, 0.03]),
+                        "affine.translate_percent",
+                    ),
+                    rotate=pair(affine_cfg.get("rotate", [-5.0, 5.0]), "affine.rotate"),
+                    border_mode=cv2.BORDER_REFLECT_101,
+                    p=float(affine_cfg.get("p", 0.15)),
+                ),
+                A.ToGray(p=float(augmentation.get("to_gray_p", 0.05))),
+                A.CoarseDropout(
+                    num_holes_range=int_pair(
+                        dropout_cfg.get("num_holes_range", [1, 2]),
+                        "coarse_dropout.num_holes_range",
+                    ),
+                    hole_height_range=pair(
+                        dropout_cfg.get("hole_height_range", [0.05, 0.14]),
+                        "coarse_dropout.hole_height_range",
+                    ),
+                    hole_width_range=pair(
+                        dropout_cfg.get("hole_width_range", [0.05, 0.14]),
+                        "coarse_dropout.hole_width_range",
+                    ),
+                    p=float(dropout_cfg.get("p", 0.15)),
+                ),
+                A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+                ToTensorV2(),
+            ]
+        )
+    )
+    val_transform = AlbumentationsImageTransform(
+        A.Compose(
+            [
+                A.Resize(height=resize_size, width=resize_size),
+                A.CenterCrop(height=image_size, width=image_size),
+                A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+                ToTensorV2(),
+            ]
+        )
+    )
+    return train_transform, val_transform
+
+
+def get_transforms(cfg):
+    image_size = int(cfg["data"].get("image_size", 224))
+    resize_size = int(cfg["data"].get("resize_size", 256))
+    augmentation = get_augmentation_cfg(cfg)
+    library = augmentation.get("library", "torchvision")
+    policy = augmentation.get("policy", "baseline_v1")
+
+    if library == "torchvision":
+        return get_torchvision_transforms(image_size, resize_size, augmentation, policy)
+    if library == "albumentations":
+        return get_albumentations_transforms(image_size, resize_size, augmentation, policy)
+    raise ValueError(f"Unsupported augmentation library: {library}")
+
+
+def get_label_smoothing(cfg) -> float:
+    return float(get_augmentation_cfg(cfg).get("label_smoothing", 0.0))
+
+
+def load_splits(path: str | Path) -> dict[str, Any]:
+    with Path(path).open("r", encoding="utf-8") as f:
+        data = json.load(f)
+    if data.get("version") != "splits_v1":
+        raise ValueError(f"Unsupported split version: {data.get('version')!r}")
+    return data
+
+
+def records_to_df(records: list[dict[str, Any]]) -> pd.DataFrame:
+    df = pd.DataFrame(records).copy()
+    df["image_id_ext"] = df["image_id_ext"].map(normalize_image_id_ext)
+    return df.reset_index(drop=True)
+
+
+def build_fold_frames(splits: dict[str, Any], fold: int) -> tuple[pd.DataFrame, pd.DataFrame]:
+    folds = splits["folds"]
+    valid_records = folds[fold]["records"]
+    train_records: list[dict[str, Any]] = []
+    for fold_payload in folds:
+        if int(fold_payload["fold"]) != fold:
+            train_records.extend(fold_payload["records"])
+    return records_to_df(train_records), records_to_df(valid_records)
+
+
+def load_weak_manifest_for_training(path: str | Path, cfg: dict[str, Any]) -> pd.DataFrame:
+    weak = pd.read_csv(path)
+    required = {"image_id_ext", "class_id", "label", "weak_weight", "selected_local_path"}
+    missing = sorted(required.difference(weak.columns))
+    if missing:
+        raise ValueError(f"Weak manifest {path} missing required columns: {missing}")
+
+    weak = weak.copy()
+    weak["image_id_ext"] = weak["image_id_ext"].map(normalize_image_id_ext)
+    weak[cfg["data"].get("label_col", "result")] = weak["class_id"].astype(int)
+    weak["result"] = weak["class_id"].astype(int)
+    weak["local_path"] = weak["selected_local_path"]
+    weak["source_dataset"] = weak.get("source_dataset", "weak_images_v1")
+    weak["ratio"] = 1.0
+    weak["item_id"] = "weak_" + weak["image_id_ext"].astype(str)
+    if "hash_sha256" in weak.columns:
+        weak["content_hash"] = weak["hash_sha256"]
+    return weak.reset_index(drop=True)
+
+
+def build_train_frame_with_optional_weak(
+    splits: dict[str, Any], fold: int, cfg: dict[str, Any]
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    train_df, valid_df = build_fold_frames(splits, fold)
+    if not cfg.get("experiment", {}).get("weak_label_flag", False):
+        return train_df, valid_df
+
+    weak_manifest = cfg.get("data", {}).get("weak_manifest")
+    if not weak_manifest:
+        raise ValueError("experiment.weak_label_flag=true requires data.weak_manifest")
+    weak_df = load_weak_manifest_for_training(weak_manifest, cfg)
+    train_df = pd.concat([train_df, weak_df], ignore_index=True, sort=False)
+    return train_df.reset_index(drop=True), valid_df
+
+
+def build_loader(
+    df,
+    images_dir,
+    transform,
+    cfg,
+    device,
+    shuffle=False,
+    sampler=None,
+    ratio_policy="none",
+    sample_weight_policy="none",
+):
+    dataset = RoomDataset(
+        df=df,
+        images_dir=images_dir,
+        image_col=cfg["data"]["image_col"],
+        label_col=cfg["data"]["label_col"],
+        transform=transform,
+        num_classes=cfg["data"]["num_classes"],
+        ratio_policy=ratio_policy,
+        sample_weight_policy=sample_weight_policy,
+        weak_weight=cfg["experiment"].get("weak_weight", 0.35),
+    )
+
+    return DataLoader(
+        dataset,
+        batch_size=cfg["train"]["batch_size"],
+        shuffle=shuffle if sampler is None else False,
+        sampler=sampler,
+        num_workers=cfg["train"]["num_workers"],
+        pin_memory=device.type == "cuda",
+    )
+
+
+def create_model(cfg, device, debug=False):
+    backbone = cfg["model"]["backbone"]
+
+    if "whitelist" in cfg["model"]:
+        assert backbone in cfg["model"]["whitelist"], f"Backbone {backbone} is not in whitelist"
+
+    # --- CLIP ветка ---
+    if backbone.startswith("clip_"):
+        clip_cfg = cfg["model"].get("clip", {})
+
+        model = CLIPImageClassifier(
+            num_classes=cfg["data"]["num_classes"],
+            model_name=clip_cfg.get("model_name", "ViT-B-32"),
+            pretrained_name=clip_cfg.get("pretrained_name", "openai"),
+            freeze_image_encoder=clip_cfg.get("freeze_image_encoder", False),
+        )
+
+        return model.to(device)
+
+    # --- обычные timm модели ---
+    try:
+        return timm.create_model(
+            backbone,
+            pretrained=cfg["model"]["pretrained"],
+            num_classes=cfg["data"]["num_classes"],
+        ).to(device)
+
+    except Exception:
+        if cfg["model"]["pretrained"] and debug:
+            print("Pretrained weights unavailable in debug; retry pretrained=False")
+            return timm.create_model(
+                backbone,
+                pretrained=False,
+                num_classes=cfg["data"]["num_classes"],
+            ).to(device)
+        raise
+
+
+def load_model_from_checkpoint(checkpoint_path, device):
+    ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
+
+    cfg = ckpt["config"]
+    clip_cfg = cfg["model"].get("clip", {})
+
+    model = CLIPImageClassifier(
+        num_classes=ckpt["num_classes"],
+        model_name=clip_cfg.get("model_name", "ViT-B-32"),
+        pretrained_name=clip_cfg.get("pretrained_name", "openai"),
+    )
+
+    model.load_state_dict(ckpt["model_state_dict"])
+    model.to(device)
+    return model
+
+
+def weighted_batch_loss(loss_per_sample, labels, sample_weights, class_weights=None):
+    weights = torch.ones_like(loss_per_sample, dtype=torch.float32)
+    if class_weights is not None:
+        weights = weights * class_weights[labels]
+    if sample_weights is not None:
+        weights = weights * sample_weights
+    return (loss_per_sample * weights).sum() / weights.sum().clamp_min(1e-12)
+
+
+def train_one_epoch(
+    model,
+    loader,
+    criterion,
+    optimizer,
+    device,
+    scaler=None,
+    use_amp=False,
+    loss_name="ce",
+    class_weights=None,
+    use_sample_weights=False,
+):
+    model.train()
+    total_loss = 0.0
+
+    for images, labels, sample_weights in tqdm(loader, desc="Train"):
+        images = images.to(device)
+        labels = labels.to(device)
+        sample_weights = sample_weights.to(device)
+
+        optimizer.zero_grad()
+
+        with torch.autocast(device_type=device.type, enabled=use_amp):
+            outputs = model(images)
+
+            if use_sample_weights or class_weights is not None:
+                loss = weighted_batch_loss(
+                    criterion(outputs, labels),
+                    labels,
+                    sample_weights if use_sample_weights else None,
+                    class_weights=class_weights,
+                )
+            else:
+                loss = criterion(outputs, labels)
+
+        if use_amp:
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            loss.backward()
+            optimizer.step()
+
+        total_loss += loss.item() * images.size(0)
+
+    return total_loss / len(loader.dataset)
+
+
+@torch.no_grad()
+def predict(
+    model,
+    loader,
+    criterion,
+    device,
+    use_amp=False,
+    desc="Eval",
+    loss_name="ce",
+    class_weights=None,
+    use_sample_weights=False,
+):
+    model.eval()
+    total_loss = 0.0
+    all_logits = []
+    all_labels = []
+
+    for images, labels, sample_weights in tqdm(loader, desc=desc):
+        images = images.to(device)
+        labels = labels.to(device)
+        sample_weights = sample_weights.to(device)
+
+        with torch.autocast(device_type=device.type, enabled=use_amp):
+            outputs = model(images)
+
+            if use_sample_weights or class_weights is not None:
+                loss = weighted_batch_loss(
+                    criterion(outputs, labels),
+                    labels,
+                    sample_weights if use_sample_weights else None,
+                    class_weights=class_weights,
+                )
+            else:
+                loss = criterion(outputs, labels)
+
+        total_loss += loss.item() * images.size(0)
+        all_logits.append(outputs.detach().cpu().numpy())
+        all_labels.extend(labels.cpu().numpy())
+
+    logits = np.concatenate(all_logits, axis=0)
+    probs = torch.softmax(torch.from_numpy(logits), dim=1).numpy()
+    labels = np.array(all_labels)
+    preds = probs.argmax(axis=1)
+
+    return {
+        "loss": total_loss / len(loader.dataset),
+        "logits": logits,
+        "probs": probs,
+        "labels": labels,
+        "preds": preds,
+        "macro_f1": f1_score(
+            labels,
+            preds,
+            average="macro",
+            labels=list(range(probs.shape[1])),
+            zero_division=0,
+        ),
+        "accuracy": accuracy_score(labels, preds),
+    }
+
+
+def prediction_frame(df: pd.DataFrame, result: dict[str, Any], num_classes: int) -> pd.DataFrame:
+    keep_cols = [
+        "image_id_ext",
+        "item_id",
+        "result",
+        "label",
+        "fold",
+        "source_dataset",
+        "local_path",
+        "content_hash",
+    ]
+    frame = df[[col for col in keep_cols if col in df.columns]].reset_index(drop=True)
+    frame["target"] = result["labels"].astype(int)
+    frame["pred"] = result["preds"].astype(int)
+    for class_id in range(num_classes):
+        frame[f"logit_{class_id}"] = result["logits"][:, class_id]
+        frame[f"prob_{class_id}"] = result["probs"][:, class_id]
+    return frame
+
+
+def class_names_from_splits(splits: dict[str, Any], num_classes: int) -> list[str]:
+    names = [str(index) for index in range(num_classes)]
+    for fold_payload in splits["folds"]:
+        for row in fold_payload["records"]:
+            names[int(row["result"])] = str(row["label"])
+    for row in splits.get("shadow_holdout", {}).get("records", []):
+        names[int(row["result"])] = str(row["label"])
+    return names
+
+
+def metrics_from_frame(df: pd.DataFrame, num_classes: int) -> dict[str, Any]:
+    labels = df["target"].to_numpy()
+    preds = df["pred"].to_numpy()
+    class_ids = list(range(num_classes))
+    return {
+        "rows": int(len(df)),
+        "macro_f1": float(
+            f1_score(labels, preds, average="macro", labels=class_ids, zero_division=0)
+        ),
+        "accuracy": float(accuracy_score(labels, preds)),
+        "per_class_f1": f1_score(labels, preds, average=None, labels=class_ids, zero_division=0),
+        "confusion_matrix": confusion_matrix(labels, preds, labels=class_ids),
+    }
+
+
+def markdown_table(headers: list[str], rows: list[list[Any]]) -> str:
+    header = "| " + " | ".join(headers) + " |"
+    separator = "| " + " | ".join(["---"] * len(headers)) + " |"
+    body = ["| " + " | ".join(str(value) for value in row) + " |" for row in rows]
+    return "\n".join([header, separator, *body])
+
+
+def write_metrics_report(
+    cfg,
+    splits,
+    oof_df,
+    shadow_df,
+    output_dir: Path,
+    run_ids: dict[int, str],
+    debug: bool,
+):
+    report_path = Path(cfg["artifacts"]["report_path"])
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    num_classes = int(cfg["data"]["num_classes"])
+    class_names = class_names_from_splits(splits, num_classes)
+    oof_metrics = metrics_from_frame(oof_df, num_classes)
+    shadow_metrics = metrics_from_frame(shadow_df, num_classes) if shadow_df is not None else None
+    shadow_present_macro_f1 = None
+    shadow_support = None
+    if shadow_df is not None:
+        present_labels = sorted(int(value) for value in shadow_df["target"].dropna().unique())
+        shadow_present_macro_f1 = float(
+            f1_score(
+                shadow_df["target"].to_numpy(),
+                shadow_df["pred"].to_numpy(),
+                average="macro",
+                labels=present_labels,
+                zero_division=0,
+            )
+        )
+        shadow_support = (
+            shadow_df["target"].value_counts().reindex(range(num_classes), fill_value=0)
+        )
+
+    cm_path = output_dir / "confusion_matrix_oof.csv"
+    pd.DataFrame(
+        oof_metrics["confusion_matrix"],
+        index=[f"true_{idx}" for idx in range(num_classes)],
+        columns=[f"pred_{idx}" for idx in range(num_classes)],
+    ).to_csv(cm_path)
+
+    per_class_rows = []
+    support = oof_df["target"].value_counts().reindex(range(num_classes), fill_value=0)
+    for class_id in range(num_classes):
+        per_class_rows.append(
+            [
+                class_id,
+                class_names[class_id],
+                int(support.loc[class_id]),
+                f"{oof_metrics['per_class_f1'][class_id]:.4f}",
+            ]
+        )
+
+    cm_rows = []
+    for class_id, row in enumerate(oof_metrics["confusion_matrix"]):
+        cm_rows.append([class_id, *[int(value) for value in row]])
+
+    total_train_rows = int(splits["summary"]["train_pool_rows_after_filters"])
+    total_shadow_rows = int(splits["summary"]["shadow_holdout_rows_after_filters"])
+    coverage = f"{len(oof_df)}/{total_train_rows}"
+    status = (
+        "debug_smoke" if debug else "full_cv" if len(oof_df) == total_train_rows else "partial_cv"
+    )
+    full_oof_ready = len(oof_df) == total_train_rows
+    shadow_ready = shadow_df is not None and len(shadow_df) == total_shadow_rows
+    gate_decision = (
+        "pending_u1_threshold" if full_oof_ready and shadow_ready else "pending_full_cv"
+    )
+
+    lines = [
+        "# Baseline Metrics V1",
+        "",
+        "## Run",
+        f"- generated_at_utc: `{current_utc()}`",
+        f"- status: `{status}`",
+        f"- debug: `{debug}`",
+        f"- split_version: `{cfg['data']['split_version']}`",
+        f"- dataset_version: `{cfg['data']['dataset_version']}`",
+        f"- backbone: `{cfg['model']['backbone']}`",
+        f"- image_size: `{cfg['data']['image_size']}`",
+        f"- seed: `{cfg['train']['seed']}`",
+        f"- folds: `{sorted(run_ids)}`",
+        f"- mlflow_run_ids: `{run_ids}`",
+        "",
+        "## Quality Gate",
+        f"- decision: `{gate_decision}`",
+        "- threshold_source: `not_found_in_repo`",
+        f"- oof_full_coverage: `{full_oof_ready}`",
+        f"- shadow_holdout_metric_ready: `{shadow_ready}`",
+        "- required_metrics: `macro_f1, per_class_f1, confusion_matrix, shadow_holdout_macro_f1`",
+        "",
+        "## OOF",
+        f"- rows: `{len(oof_df)}`",
+        f"- train_development_pool_coverage: `{coverage}`",
+        f"- macro_f1: `{oof_metrics['macro_f1']:.6f}`",
+        f"- accuracy: `{oof_metrics['accuracy']:.6f}`",
+        f"- predictions: `{(output_dir / 'oof_predictions.parquet').as_posix()}`",
+        f"- confusion_matrix_csv: `{cm_path.as_posix()}`",
+        "",
+        "## Per-Class F1",
+        markdown_table(["class_id", "label", "support", "f1"], per_class_rows),
+        "",
+        "## Confusion Matrix OOF",
+        markdown_table(["true/pred", *[str(idx) for idx in range(num_classes)]], cm_rows),
+    ]
+
+    if shadow_metrics is not None:
+        shadow_rows = []
+        for class_id in range(num_classes):
+            support_value = int(shadow_support.loc[class_id])
+            shadow_rows.append(
+                [
+                    class_id,
+                    class_names[class_id],
+                    support_value,
+                    "yes" if support_value == 0 else "no",
+                ]
+            )
+
+        lines.extend(
+            [
+                "",
+                "## Shadow Holdout",
+                f"- rows: `{len(shadow_df)}`",
+                f"- macro_f1_all_labels: `{shadow_metrics['macro_f1']:.6f}`",
+                f"- macro_f1_present_labels: `{shadow_present_macro_f1:.6f}`",
+                f"- accuracy: `{shadow_metrics['accuracy']:.6f}`",
+                f"- predictions: `{(output_dir / 'shadow_holdout_predictions.parquet').as_posix()}`",
+                "",
+                "### Shadow support by class",
+                markdown_table(
+                    ["class_id", "label", "support", "warning_support_zero"], shadow_rows
+                ),
+            ]
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Re-run",
+            "```bash",
+            "uv run python src/training/train_image.py --config configs/model/image_baseline_v1.yaml --all-folds",
+            "```",
+            "",
+        ]
+    )
+    report_path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def sqlite_path_from_uri(uri: str) -> Path | None:
+    parsed = urlparse(uri)
+    if parsed.scheme != "sqlite":
+        return None
+    if parsed.path.startswith("/"):
+        return Path(parsed.path[1:] if not parsed.netloc else parsed.path)
+    return Path(parsed.path)
+
+
+def normalize_mlflow_experiment(cfg) -> str:
+    mlflow_cfg = cfg["mlflow"]
+    tracking_uri = mlflow_cfg["tracking_uri"]
+    experiment_name = mlflow_cfg["experiment_name"]
+    artifact_root = Path(
+        mlflow_cfg.get(
+            "artifact_root",
+            cfg.get("artifacts", {}).get("roots", {}).get("mlflow", "artifacts/logs/mlruns"),
+        )
+    ).resolve()
+    experiment_artifact_uri = (artifact_root / experiment_name).as_uri()
+
+    db_path = sqlite_path_from_uri(tracking_uri)
+    if db_path is not None and db_path.exists():
+        with sqlite3.connect(db_path) as conn:
+            for experiment_id, name, artifact_location in conn.execute(
+                "select experiment_id, name, artifact_location from experiments"
+            ).fetchall():
+                expected_experiment_uri = (artifact_root / name).as_uri()
+                if artifact_location != expected_experiment_uri:
+                    conn.execute(
+                        "update experiments set artifact_location = ? where experiment_id = ?",
+                        (expected_experiment_uri, experiment_id),
+                    )
+                for run_id, artifact_uri in conn.execute(
+                    "select run_uuid, artifact_uri from runs where experiment_id = ?",
+                    (experiment_id,),
+                ).fetchall():
+                    expected_uri = (artifact_root / name / run_id / "artifacts").as_uri()
+                    if artifact_uri != expected_uri:
+                        conn.execute(
+                            "update runs set artifact_uri = ? where run_uuid = ?",
+                            (expected_uri, run_id),
+                        )
+                conn.commit()
+
+    mlflow.set_tracking_uri(tracking_uri)
+    client = mlflow.tracking.MlflowClient()
+    experiment = client.get_experiment_by_name(experiment_name)
+    if experiment is None:
+        experiment_id = client.create_experiment(
+            experiment_name, artifact_location=experiment_artifact_uri
+        )
+    else:
+        experiment_id = experiment.experiment_id
+    return str(experiment_id)
+
+
+def log_mlflow_params(cfg, fold, device, debug):
+    mlflow.log_params(
+        {
+            "fold": fold,
+            "device": str(device),
+            "debug": debug,
+            "backbone": cfg["model"]["backbone"],
+            "pretrained": cfg["model"]["pretrained"],
+            "num_classes": cfg["data"]["num_classes"],
+            "image_size": cfg["data"]["image_size"],
+            "batch_size": cfg["train"]["batch_size"],
+            "epochs": cfg["train"]["epochs"],
+            "lr": cfg["train"]["lr"],
+            "weight_decay": cfg["train"]["weight_decay"],
+            "amp": cfg["train"]["amp"],
+            "dataset_version": cfg["data"]["dataset_version"],
+            "split_version": cfg["data"]["split_version"],
+            "loss": cfg["experiment"]["loss"],
+            "sampler": cfg["experiment"]["sampler"],
+            "ratio_policy": cfg["experiment"]["ratio_policy"],
+            "class_weight_policy": cfg["experiment"].get("class_weight_policy", "none"),
+            "sample_weight_policy": resolve_sample_weight_policy(cfg),
+            "weak_manifest": str(cfg["data"].get("weak_manifest")),
+            "weak_manifest_version": str(cfg["experiment"].get("weak_manifest_version")),
+            "weak_weight": str(cfg["experiment"].get("weak_weight")),
+            "max_added_per_class": str(cfg["experiment"].get("max_added_per_class")),
+            "effective_count_policy": str(cfg["experiment"].get("class_weight_policy", "none")),
+            "weight_clip_min": str(cfg["experiment"].get("weight_clip_min")),
+            "weight_clip_max": str(cfg["experiment"].get("weight_clip_max")),
+            "effective_beta": str(cfg["experiment"].get("effective_beta")),
+            "sampler_mixture_lambda": str(cfg["experiment"].get("sampler_mixture_lambda")),
+            "repeat_factor_cap": str(cfg["experiment"].get("repeat_factor_cap")),
+            "weak_label_flag": cfg["experiment"]["weak_label_flag"],
+            "feature_flags": cfg["experiment"]["feature_flags"],
+            "tta_flag": cfg["experiment"]["tta_flag"],
+            "augmentation_library": cfg.get("augmentation", {}).get("library", "torchvision"),
+            "augmentation_policy": cfg.get("augmentation", {}).get("policy", "baseline_v1"),
+            "label_smoothing": get_label_smoothing(cfg),
+            "early_stopping_enabled": bool(cfg.get("early_stopping", {}).get("enabled", False)),
+            "early_stopping_patience": str(cfg.get("early_stopping", {}).get("patience")),
+            "early_stopping_min_delta": str(cfg.get("early_stopping", {}).get("min_delta")),
+            "early_stopping_monitor": str(cfg.get("early_stopping", {}).get("monitor")),
+            "early_stopping_mode": str(cfg.get("early_stopping", {}).get("mode")),
+        }
+    )
+    mlflow.set_tags(
+        {
+            "commit_sha": git_commit_sha(),
+            "dataset_version": cfg["data"]["dataset_version"],
+            "split_version": cfg["data"]["split_version"],
+            "seed": str(cfg["train"]["seed"]),
+            "backbone": cfg["model"]["backbone"],
+            "image_size": str(cfg["data"]["image_size"]),
+            "loss": cfg["experiment"]["loss"],
+            "sampler": cfg["experiment"]["sampler"],
+            "ratio_policy": cfg["experiment"]["ratio_policy"],
+            "sample_weight_policy": resolve_sample_weight_policy(cfg),
+            "class_weight_policy": str(cfg["experiment"].get("class_weight_policy", "none")),
+            "weak_manifest_version": str(cfg["experiment"].get("weak_manifest_version")),
+            "sampler_mixture_lambda": str(cfg["experiment"].get("sampler_mixture_lambda")),
+            "weak_label_flag": str(cfg["experiment"]["weak_label_flag"]),
+            "feature_flags": cfg["experiment"]["feature_flags"],
+            "tta_flag": str(cfg["experiment"]["tta_flag"]),
+            "augmentation_library": str(cfg.get("augmentation", {}).get("library", "torchvision")),
+            "augmentation_policy": str(cfg.get("augmentation", {}).get("policy", "baseline_v1")),
+            "label_smoothing": str(get_label_smoothing(cfg)),
+        }
+    )
+
+
+def safe_log_artifact(path: Path, artifact_path: str | None = None) -> None:
+    try:
+        mlflow.log_artifact(str(path), artifact_path=artifact_path)
+    except Exception as exc:
+        print(f"MLflow artifact log failed: {exc}")
+
+
+def run_name(cfg, fold: int) -> str:
+    split_tag = cfg["data"]["split_version"].replace("splits_", "split")
+    ds_tag = cfg["data"]["dataset_version"].replace("_", "")
+    backbone_tag = slug(cfg["model"]["backbone"])
+    image_size = cfg["data"]["image_size"]
+    loss = cfg["experiment"]["loss"]
+    sampler = cfg["experiment"]["sampler"]
+    feature_flags = cfg["experiment"]["feature_flags"]
+    seed = cfg["train"]["seed"]
+    version = cfg["experiment"]["version"]
+    return (
+        f"rt_{split_tag}_{ds_tag}_{backbone_tag}_{image_size}_{loss}_"
+        f"{sampler}_{feature_flags}_s{seed}_{version}_fold{fold}"
+    )
+
+
+def checkpoint_path(cfg, fold: int) -> Path:
+    checkpoint_dir = Path(
+        cfg.get("artifacts", {}).get("roots", {}).get("checkpoints", cfg["checkpoint"]["dir"])
+    )
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    backbone_tag = slug(cfg["model"]["backbone"])
+    image_size = cfg["data"]["image_size"]
+    version = cfg["experiment"]["version"]
+    return checkpoint_dir / f"roomclf_{backbone_tag}_fold{fold}_{image_size}_{version}.ckpt"
+
+
+def run_fold(
+    args, cfg, splits, fold: int, experiment_id: str
+) -> tuple[pd.DataFrame, pd.DataFrame, str]:
+    set_seed(int(cfg["train"]["seed"]) + fold)
+    device = get_device(cfg)
+    print(f"Device: {device}")
+    print(f"Fold: {fold}")
+
+    train_df, valid_df = build_train_frame_with_optional_weak(splits, fold, cfg)
+    valid_df["fold"] = fold
+    shadow_df = records_to_df(splits["shadow_holdout"]["records"])
+    shadow_df["fold"] = fold
+
+    if args.debug:
+        print("DEBUG_MODE_ON")
+        train_df = train_df.head(min(cfg["debug"]["train_samples"], len(train_df)))
+        valid_df = valid_df.head(min(cfg["debug"]["val_samples"], len(valid_df)))
+        shadow_df = shadow_df.head(min(cfg["debug"]["val_samples"], len(shadow_df)))
+        cfg["train"]["epochs"] = cfg["debug"]["epochs"]
+        cfg["train"]["num_workers"] = cfg["debug"]["num_workers"]
+
+    train_transform, val_transform = get_transforms(cfg)
+    loss_name = cfg["experiment"].get("loss", "ce")
+    sampler_type = cfg["experiment"].get("sampler", "shuffle")
+    ratio_policy = cfg["experiment"].get("ratio_policy", "none")
+    sample_weight_policy = resolve_sample_weight_policy(cfg)
+
+    num_classes = int(cfg["data"]["num_classes"])
+
+    train_labels = train_df[cfg["data"]["label_col"]].astype(int).values
+    train_sampler = None
+    train_shuffle = True
+
+    if sampler_type == "balanced":
+        train_sampler = build_balanced_sampler(train_labels, num_classes)
+        train_shuffle = False
+    elif sampler_type == "class_aware_mixture":
+        train_sampler = build_class_aware_mixture_sampler(
+            train_labels,
+            num_classes,
+            mixture_lambda=cfg["experiment"].get("sampler_mixture_lambda", 0.5),
+        )
+        train_shuffle = False
+    elif sampler_type == "repeat_factor":
+        train_sampler = build_repeat_factor_sampler(
+            train_labels,
+            num_classes,
+            target_freq=cfg["experiment"].get("repeat_factor_target_freq"),
+            repeat_factor_cap=cfg["experiment"].get("repeat_factor_cap", 4.0),
+        )
+        train_shuffle = False
+    elif sampler_type != "shuffle":
+        raise ValueError(f"Unsupported sampler: {sampler_type}")
+
+    train_loader = build_loader(
+        train_df,
+        cfg["data"]["images_train_dir"],
+        train_transform,
+        cfg,
+        device,
+        shuffle=train_shuffle,
+        sampler=train_sampler,
+        ratio_policy=ratio_policy,
+        sample_weight_policy=sample_weight_policy,
+    )
+
+    valid_loader = build_loader(
+        valid_df,
+        cfg["data"]["images_train_dir"],
+        val_transform,
+        cfg,
+        device,
+        shuffle=False,
+        sampler=None,
+        ratio_policy="none",
+        sample_weight_policy="none",
+    )
+
+    shadow_loader = build_loader(
+        shadow_df,
+        cfg["data"]["images_val_dir"],
+        val_transform,
+        cfg,
+        device,
+        shuffle=False,
+        sampler=None,
+        ratio_policy="none",
+        sample_weight_policy="none",
+    )
+
+    ckpt_path = checkpoint_path(cfg, fold)
+    if cfg["checkpoint"].get("resume", False) and ckpt_path.exists():
+        print("Loading model from checkpoint...")
+        model = load_model_from_checkpoint(ckpt_path, device)
+    else:
+        print("Creating new model...")
+        model = create_model(cfg, device, debug=args.debug)
+
+    class_weights = None
+    class_weight_policy = cfg["experiment"].get("class_weight_policy", "none")
+    if loss_name == "weighted_ce" and class_weight_policy == "none":
+        class_weight_policy = "raw_inverse"
+
+    label_smoothing = get_label_smoothing(cfg)
+    train_sample_weights = None
+    if sample_weight_policy != "none":
+        weighted_train_df = add_sample_weight_column(
+            train_df,
+            ratio_policy=ratio_policy,
+            sample_weight_policy=sample_weight_policy,
+            weak_weight=cfg["experiment"].get("weak_weight", 0.35),
+        )
+        train_sample_weights = weighted_train_df["sample_weight"].to_numpy(dtype=np.float64)
+
+    if class_weight_policy != "none":
+        class_weights = compute_class_weights(
+            train_labels,
+            num_classes,
+            policy=class_weight_policy,
+            clip_min=cfg["experiment"].get("weight_clip_min"),
+            clip_max=cfg["experiment"].get("weight_clip_max"),
+            effective_beta=cfg["experiment"].get("effective_beta", 0.999),
+            sample_weights=train_sample_weights,
+        ).to(device)
+        print("Class weights:", class_weights.detach().cpu().numpy().round(4).tolist())
+
+    use_sample_weights = sample_weight_policy != "none"
+    if use_sample_weights or class_weights is not None:
+        criterion = nn.CrossEntropyLoss(reduction="none", label_smoothing=label_smoothing)
+    else:
+        criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
+
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        lr=cfg["train"]["lr"],
+        weight_decay=cfg["train"]["weight_decay"],
+    )
+
+    use_amp = bool(cfg["train"]["amp"]) and device.type == "cuda"
+    scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
+
+    early_stopping = cfg.get("early_stopping", {}) or {}
+    early_stopping_enabled = bool(early_stopping.get("enabled", False))
+    early_stopping_patience = int(early_stopping.get("patience", 0))
+    early_stopping_min_delta = float(early_stopping.get("min_delta", 0.0))
+    monitor_metric = early_stopping.get(
+        "monitor", cfg.get("checkpoint", {}).get("monitor", "val_macro_f1")
+    )
+    monitor_mode = early_stopping.get(
+        "mode", "min" if str(monitor_metric).endswith("loss") else "max"
+    )
+    if monitor_mode not in {"max", "min"}:
+        raise ValueError(f"Unsupported early stopping mode: {monitor_mode}")
+    if early_stopping_enabled and early_stopping_patience < 1:
+        raise ValueError("early_stopping.patience must be >= 1 when enabled")
+
+    best_score = None
+    best_f1 = -1.0
+    epochs_without_improvement = 0
+
+    with mlflow.start_run(
+        experiment_id=experiment_id,
+        run_name=run_name(cfg, fold),
+    ) as run:
+        log_mlflow_params(cfg, fold, device, args.debug)
+
+        for epoch in range(cfg["train"]["epochs"]):
+            print(f"\nEpoch {epoch + 1}/{cfg['train']['epochs']}")
+            train_loss = train_one_epoch(
+                model=model,
+                loader=train_loader,
+                criterion=criterion,
+                optimizer=optimizer,
+                device=device,
+                scaler=scaler,
+                use_amp=use_amp,
+                loss_name=loss_name,
+                class_weights=class_weights,
+                use_sample_weights=use_sample_weights,
+            )
+            val_result = predict(
+                model=model,
+                loader=valid_loader,
+                criterion=criterion,
+                device=device,
+                use_amp=use_amp,
+                desc="Eval",
+                loss_name=loss_name,
+                class_weights=class_weights,
+                use_sample_weights=use_sample_weights,
+            )
+
+            print(
+                f"train_loss={train_loss:.4f} | "
+                f"val_loss={val_result['loss']:.4f} | "
+                f"val_macro_f1={val_result['macro_f1']:.4f} | "
+                f"val_acc={val_result['accuracy']:.4f}"
+            )
+
+            mlflow.log_metric("train_loss", train_loss, step=epoch)
+            mlflow.log_metric("val_loss", val_result["loss"], step=epoch)
+            mlflow.log_metric("val_macro_f1", val_result["macro_f1"], step=epoch)
+            mlflow.log_metric("val_accuracy", val_result["accuracy"], step=epoch)
+
+            monitor_values = {
+                "val_loss": float(val_result["loss"]),
+                "val_macro_f1": float(val_result["macro_f1"]),
+                "val_accuracy": float(val_result["accuracy"]),
+            }
+            if monitor_metric not in monitor_values:
+                raise ValueError(f"Unsupported monitor metric: {monitor_metric}")
+            current_score = monitor_values[monitor_metric]
+
+            if metric_improved(current_score, best_score, monitor_mode, early_stopping_min_delta):
+                best_score = current_score
+                best_f1 = float(val_result["macro_f1"])
+                epochs_without_improvement = 0
+                torch.save(
+                    {
+                        "model_state_dict": model.state_dict(),
+                        "backbone": cfg["model"]["backbone"],
+                        "num_classes": cfg["data"]["num_classes"],
+                        "fold": fold,
+                        "epoch": epoch,
+                        "best_f1": best_f1,
+                        "best_score": best_score,
+                        "monitor_metric": monitor_metric,
+                        "config": cfg,
+                    },
+                    ckpt_path,
+                )
+                safe_log_artifact(ckpt_path, artifact_path="checkpoints")
+                print(f"Saved best checkpoint: {ckpt_path}")
+            else:
+                epochs_without_improvement += 1
+                if early_stopping_enabled:
+                    print(
+                        "Early stopping wait: "
+                        f"{epochs_without_improvement}/{early_stopping_patience}"
+                    )
+                    if epochs_without_improvement >= early_stopping_patience:
+                        stopped_epoch = epoch + 1
+                        mlflow.log_metric("early_stopping_epoch", stopped_epoch, step=epoch)
+                        mlflow.set_tag("early_stopped", "true")
+                        print(f"Early stopping at epoch {stopped_epoch}")
+                        break
+
+        mlflow.log_metric("best_val_macro_f1", best_f1)
+        if best_score is not None and monitor_metric != "val_macro_f1":
+            mlflow.log_metric(f"best_{monitor_metric}", best_score)
+
+        model = load_model_from_checkpoint(ckpt_path, device)
+        oof_result = predict(
+            model=model,
+            loader=valid_loader,
+            criterion=criterion,
+            device=device,
+            use_amp=use_amp,
+            desc="OOF",
+            loss_name=loss_name,
+            class_weights=class_weights,
+            use_sample_weights=use_sample_weights,
+        )
+        shadow_result = predict(
+            model=model,
+            loader=shadow_loader,
+            criterion=criterion,
+            device=device,
+            use_amp=use_amp,
+            desc="Shadow",
+            loss_name=loss_name,
+            class_weights=class_weights,
+            use_sample_weights=use_sample_weights,
+        )
+
+        oof_frame = prediction_frame(valid_df, oof_result, cfg["data"]["num_classes"])
+        shadow_frame = prediction_frame(shadow_df, shadow_result, cfg["data"]["num_classes"])
+
+        output_dir = Path(cfg["artifacts"]["oof_dir"])
+        output_dir.mkdir(parents=True, exist_ok=True)
+        fold_oof_path = output_dir / f"fold{fold}_oof_predictions.parquet"
+        fold_shadow_path = output_dir / f"fold{fold}_shadow_predictions.parquet"
+        oof_frame.to_parquet(fold_oof_path, index=False)
+        shadow_frame.to_parquet(fold_shadow_path, index=False)
+        safe_log_artifact(fold_oof_path, artifact_path="oof")
+        safe_log_artifact(fold_shadow_path, artifact_path="shadow")
+
+        mlflow.log_metric("final_oof_macro_f1", oof_result["macro_f1"])
+        mlflow.log_metric("final_shadow_macro_f1", shadow_result["macro_f1"])
+        mlflow.log_metric("final_shadow_accuracy", shadow_result["accuracy"])
+
+        return oof_frame, shadow_frame, run.info.run_id
+
+
+def aggregate_shadow(shadow_frames: list[pd.DataFrame], num_classes: int) -> pd.DataFrame:
+    if len(shadow_frames) == 1:
+        return shadow_frames[0]
+
+    key_cols = [
+        "image_id_ext",
+        "item_id",
+        "result",
+        "label",
+        "source_dataset",
+        "local_path",
+        "content_hash",
+    ]
+    base_cols = [col for col in key_cols if col in shadow_frames[0].columns]
+    merged = shadow_frames[0][base_cols + ["target"]].copy().reset_index(drop=True)
+
+    probs = np.stack(
+        [
+            frame[[f"prob_{class_id}" for class_id in range(num_classes)]].to_numpy()
+            for frame in shadow_frames
+        ],
+        axis=0,
+    ).mean(axis=0)
+    merged["fold"] = "ensemble"
+    merged["pred"] = probs.argmax(axis=1).astype(int)
+    for class_id in range(num_classes):
+        merged[f"prob_{class_id}"] = probs[:, class_id]
+    return merged
+
+
+def write_final_config(cfg, output_dir: Path) -> Path:
+    path = output_dir / "config.yaml"
+    with path.open("w", encoding="utf-8") as f:
+        yaml.safe_dump(cfg, f, sort_keys=False, allow_unicode=True)
+    return path
+
+
+def main():
+    args = parse_args()
+    cfg = load_config(args.config)
+    splits = load_splits(cfg["data"]["splits_json"])
+    experiment_id = normalize_mlflow_experiment(cfg)
+
+    if args.all_folds:
+        folds = [int(fold_payload["fold"]) for fold_payload in splits["folds"]]
+    else:
+        folds = [args.fold]
+
+    oof_frames: list[pd.DataFrame] = []
+    shadow_frames: list[pd.DataFrame] = []
+    run_ids: dict[int, str] = {}
+    for fold in folds:
+        fold_cfg = copy.deepcopy(cfg)
+        oof_frame, shadow_frame, run_id = run_fold(args, fold_cfg, splits, fold, experiment_id)
+        oof_frames.append(oof_frame)
+        shadow_frames.append(shadow_frame)
+        run_ids[fold] = run_id
+
+    output_dir = Path(cfg["artifacts"]["oof_dir"])
+    output_dir.mkdir(parents=True, exist_ok=True)
+    oof_df = pd.concat(oof_frames, ignore_index=True)
+    shadow_df = aggregate_shadow(shadow_frames, cfg["data"]["num_classes"])
+
+    oof_path = output_dir / "oof_predictions.parquet"
+    shadow_path = output_dir / "shadow_holdout_predictions.parquet"
+    oof_df.to_parquet(oof_path, index=False)
+    shadow_df.to_parquet(shadow_path, index=False)
+    config_path = write_final_config(cfg, output_dir)
+
+    write_metrics_report(
+        cfg=cfg,
+        splits=splits,
+        oof_df=oof_df,
+        shadow_df=shadow_df,
+        output_dir=output_dir,
+        run_ids=run_ids,
+        debug=args.debug,
+    )
+    print(f"OOF -> {oof_path}")
+    print(f"Shadow -> {shadow_path}")
+    print(f"Config -> {config_path}")
+    print(f"Report -> {cfg['artifacts']['report_path']}")
+
+
+if __name__ == "__main__":
+    main()

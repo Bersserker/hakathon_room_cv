@@ -1,0 +1,86 @@
+data:
+  images_train_dir: data/raw/train_images/train_images
+  images_val_dir: data/raw/val_images/val_images
+  images_test_dir: data/raw/test_images/test_images
+  images_csv_path: data/raw
+  train_df: data/raw/train_df.csv
+  test_df: data/raw/test_df.csv
+  val_df: data/raw/val_df.csv
+  splits_json: data/splits/splits_v1.json
+  dataset_version: ds_main_v1
+  split_version: splits_v1
+  image_col: image_id_ext
+  label_col: result
+  num_classes: 20
+  image_size: 224
+  resize_size: 256
+model:
+  backbone: convnext_tiny.in12k_ft_in1k
+  pretrained: true
+  whitelist:
+  - convnext_tiny.in12k_ft_in1k
+  - efficientnet_b0
+  - resnet50
+train:
+  epochs: 3
+  batch_size: 16
+  num_workers: 4
+  lr: 0.0001
+  weight_decay: 0.01
+  amp: true
+  seed: 42
+debug:
+  enabled: false
+  train_samples: 64
+  val_samples: 32
+  epochs: 1
+  num_workers: 0
+checkpoint:
+  dir: artifacts/checkpoints
+  monitor: val_macro_f1
+artifacts:
+  roots:
+    checkpoints: artifacts/checkpoints
+    logs: artifacts/logs
+    reports: reports
+    mlflow: artifacts/logs/mlruns
+  oof_dir: artifacts/oof/safe_aug_v1
+  report_path: reports/baseline_metrics_safe_aug_v1.md
+augmentation:
+  library: torchvision
+  policy: safe_v1
+  random_resized_crop:
+    scale:
+    - 0.75
+    - 1.0
+    ratio:
+    - 0.85
+    - 1.15
+  horizontal_flip_p: 0.5
+  color_jitter:
+    brightness: 0.15
+    contrast: 0.15
+    saturation: 0.1
+    hue: 0.0
+  random_grayscale_p: 0.05
+  random_erasing:
+    p: 0.1
+    scale:
+    - 0.02
+    - 0.1
+    ratio:
+    - 0.3
+    - 3.3
+  label_smoothing: 0.05
+experiment:
+  version: v02_safe_aug
+  loss: ce_label_smoothing_005
+  sampler: shuffle
+  ratio_policy: none
+  weak_label_flag: false
+  feature_flags: img
+  tta_flag: false
+mlflow:
+  tracking_uri: sqlite:///artifacts/logs/mlflow.db
+  experiment_name: room_type_image_safe_aug
+  artifact_root: artifacts/logs/mlruns
