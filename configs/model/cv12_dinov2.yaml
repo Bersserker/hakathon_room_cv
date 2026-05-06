@@ -12,8 +12,8 @@ data:
   image_col: image_id_ext
   label_col: result
   num_classes: 20
-  image_size: 224
-  resize_size: 256
+  image_size: 518
+  resize_size: 518
 
 model:
   backbone: vit_base_patch14_dinov2.lvd142m
@@ -23,7 +23,7 @@ model:
 
 train:
   epochs: 1000
-  batch_size: 16
+  batch_size: 4
   num_workers: 4
   lr: 0.00005
   weight_decay: 0.01
