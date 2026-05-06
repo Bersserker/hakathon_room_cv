@@ -35,6 +35,7 @@ def parse_args():
     parser.add_argument("--fold", type=int, default=0)
     parser.add_argument("--all-folds", action="store_true")
     parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--device", choices=["cpu", "cuda", "mps"], default=None)
     return parser.parse_args()
 
 
@@ -621,6 +622,48 @@ def load_model_from_checkpoint(checkpoint_path, device):
     return model
 
 
+class FocalLoss(nn.Module):
+    """Multi-class focal loss over logits.
+
+    Class/sample weighting stays outside this module through `weighted_batch_loss`,
+    matching existing CE weighting behavior.
+    """
+
+    def __init__(self, gamma=2.0, reduction="mean", label_smoothing=0.0):
+        super().__init__()
+        self.gamma = float(gamma)
+        self.reduction = reduction
+        self.label_smoothing = float(label_smoothing)
+        if self.gamma < 0:
+            raise ValueError("focal gamma must be non-negative")
+        if reduction not in {"none", "mean"}:
+            raise ValueError(f"Unsupported focal reduction: {reduction}")
+
+    def forward(self, logits, labels):
+        ce = nn.functional.cross_entropy(
+            logits,
+            labels,
+            reduction="none",
+            label_smoothing=self.label_smoothing,
+        )
+        pt = torch.exp(-ce)
+        loss = torch.pow(1.0 - pt, self.gamma) * ce
+        if self.reduction == "none":
+            return loss
+        return loss.mean()
+
+
+def build_criterion(loss_name, *, use_sample_weights, class_weights, label_smoothing, cfg):
+    reduction = "none" if use_sample_weights or class_weights is not None else "mean"
+    if loss_name == "focal":
+        return FocalLoss(
+            gamma=cfg["experiment"].get("focal_gamma", 2.0),
+            reduction=reduction,
+            label_smoothing=label_smoothing,
+        )
+    return nn.CrossEntropyLoss(reduction=reduction, label_smoothing=label_smoothing)
+
+
 def weighted_batch_loss(loss_per_sample, labels, sample_weights, class_weights=None):
     weights = torch.ones_like(loss_per_sample, dtype=torch.float32)
     if class_weights is not None:
@@ -1027,6 +1070,7 @@ def log_mlflow_params(cfg, fold, device, debug):
             "weight_clip_min": str(cfg["experiment"].get("weight_clip_min")),
             "weight_clip_max": str(cfg["experiment"].get("weight_clip_max")),
             "effective_beta": str(cfg["experiment"].get("effective_beta")),
+            "focal_gamma": str(cfg["experiment"].get("focal_gamma")),
             "sampler_mixture_lambda": str(cfg["experiment"].get("sampler_mixture_lambda")),
             "repeat_factor_cap": str(cfg["experiment"].get("repeat_factor_cap")),
             "weak_label_flag": cfg["experiment"]["weak_label_flag"],
@@ -1055,6 +1099,7 @@ def log_mlflow_params(cfg, fold, device, debug):
             "ratio_policy": cfg["experiment"]["ratio_policy"],
             "sample_weight_policy": resolve_sample_weight_policy(cfg),
             "class_weight_policy": str(cfg["experiment"].get("class_weight_policy", "none")),
+            "focal_gamma": str(cfg["experiment"].get("focal_gamma")),
             "weak_manifest_version": str(cfg["experiment"].get("weak_manifest_version")),
             "sampler_mixture_lambda": str(cfg["experiment"].get("sampler_mixture_lambda")),
             "weak_label_flag": str(cfg["experiment"]["weak_label_flag"]),
@@ -1228,10 +1273,13 @@ def run_fold(
         print("Class weights:", class_weights.detach().cpu().numpy().round(4).tolist())
 
     use_sample_weights = sample_weight_policy != "none"
-    if use_sample_weights or class_weights is not None:
-        criterion = nn.CrossEntropyLoss(reduction="none", label_smoothing=label_smoothing)
-    else:
-        criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
+    criterion = build_criterion(
+        loss_name,
+        use_sample_weights=use_sample_weights,
+        class_weights=class_weights,
+        label_smoothing=label_smoothing,
+        cfg=cfg,
+    )
 
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -1435,6 +1483,8 @@ def write_final_config(cfg, output_dir: Path) -> Path:
 def main():
     args = parse_args()
     cfg = load_config(args.config)
+    if args.device is not None:
+        cfg["train"]["device"] = args.device
     splits = load_splits(cfg["data"]["splits_json"])
     experiment_id = normalize_mlflow_experiment(cfg)
 

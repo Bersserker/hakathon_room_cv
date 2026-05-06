@@ -1,4 +1,4 @@
-.PHONY: setup lint test smoke-train train infer validate-submission weak-labels-v1 weak-images-v1 format pre-commit-install mlflow-ui
+.PHONY: setup lint test smoke-train train infer validate-submission weak-labels-v1 weak-images-v1 adversarial-validation format pre-commit-install mlflow-ui
 
 UV ?= uv
 CONFIG ?= configs/model/image_baseline_v1.yaml
@@ -39,6 +39,9 @@ weak-labels-v1:
 
 weak-images-v1:
 	$(UV) run python scripts/build_weak_images_v1.py --max-added-per-class 5=180 6=80 11=200 --weak-weight 0.35 --max-texts 0 --drop-catalog --drop-person
+
+adversarial-validation:
+	$(UV) run python scripts/run_adversarial_validation.py
 
 format:
 	$(UV) run ruff format .
