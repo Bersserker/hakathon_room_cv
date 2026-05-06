@@ -7,8 +7,10 @@ import torch
 from PIL import Image
 
 from src.training.train_image import (
+    FocalLoss,
     RoomDataset,
     build_class_aware_mixture_sampler,
+    build_criterion,
     build_train_frame_with_optional_weak,
     compute_class_weights,
     compute_effective_class_counts,
@@ -57,6 +59,41 @@ def test_weighted_batch_loss_normalizes_by_sum_of_weights():
     loss = weighted_batch_loss(loss_per_sample, labels, sample_weights)
 
     assert loss.item() == pytest.approx((2.0 * 0.5 + 4.0) / 1.5)
+
+
+def test_focal_loss_gamma_zero_matches_cross_entropy():
+    logits = torch.tensor([[3.0, 0.1], [0.2, 1.7]])
+    labels = torch.tensor([0, 1])
+
+    focal = FocalLoss(gamma=0.0)(logits, labels)
+    ce = torch.nn.functional.cross_entropy(logits, labels)
+
+    assert focal.item() == pytest.approx(ce.item())
+
+
+def test_focal_loss_downweights_easy_examples_more_than_hard_examples():
+    logits = torch.tensor([[5.0, 0.0], [0.1, 0.0]])
+    labels = torch.tensor([0, 0])
+
+    focal = FocalLoss(gamma=2.0, reduction="none")(logits, labels)
+    ce = torch.nn.functional.cross_entropy(logits, labels, reduction="none")
+    ratios = focal / ce
+
+    assert ratios[0] < ratios[1]
+
+
+def test_build_focal_criterion_uses_none_reduction_when_weighting_is_enabled():
+    criterion = build_criterion(
+        "focal",
+        use_sample_weights=True,
+        class_weights=None,
+        label_smoothing=0.0,
+        cfg={"experiment": {"focal_gamma": 2.0}},
+    )
+
+    loss = criterion(torch.tensor([[1.0, 0.0], [0.0, 1.0]]), torch.tensor([0, 1]))
+
+    assert loss.shape == (2,)
 
 
 def test_room_dataset_prefers_existing_local_path_and_returns_source_x_ratio_weight(tmp_path):

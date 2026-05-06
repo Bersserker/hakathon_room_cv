@@ -1,0 +1,241 @@
+mode,feature_set,example_type,rank,image_id_ext,item_id,result,label,domain,p_shadow_holdout,fold,local_path
+raw,metadata,holdout_like_train_examples,1,15888269104.jpg,1370230003074,9,совмещенный санузел,train_dev_pool,0.9285545133187962,3,data/raw/train_images/train_images/15888269104.jpg
+raw,metadata,holdout_like_train_examples,2,14171940094.jpg,1296061750253,14,дом снаружи / двор,train_dev_pool,0.9071342973541596,0,data/raw/train_images/train_images/14171940094.jpg
+raw,metadata,holdout_like_train_examples,3,15680828680.jpg,1358940251360,16,другое,train_dev_pool,0.8801359443519976,1,data/raw/train_images/train_images/15680828680.jpg
+raw,metadata,holdout_like_train_examples,4,15491460339.jpg,1346374000971,9,совмещенный санузел,train_dev_pool,0.8676132428146908,4,data/raw/train_images/train_images/15491460339.jpg
+raw,metadata,holdout_like_train_examples,5,15826033032.jpg,1367821500446,17,предметы интерьера / быт.техника,train_dev_pool,0.8514703168569384,1,data/raw/train_images/train_images/15826033032.jpg
+raw,metadata,holdout_like_train_examples,6,15661252076.jpg,1361828001870,16,другое,train_dev_pool,0.8500305644684919,2,data/raw/train_images/train_images/15661252076.jpg
+raw,metadata,holdout_like_train_examples,7,15889690014.jpg,1354419004855,7,ванная комната,train_dev_pool,0.8444347128236454,2,data/raw/train_images/train_images/15889690014.jpg
+raw,metadata,holdout_like_train_examples,8,15737445232.jpg,1364553500288,9,совмещенный санузел,train_dev_pool,0.8395236556924013,0,data/raw/train_images/train_images/15737445232.jpg
+raw,metadata,holdout_like_train_examples,9,15905730475.jpg,1370835505490,16,другое,train_dev_pool,0.8302127096779713,4,data/raw/train_images/train_images/15905730475.jpg
+raw,metadata,holdout_like_train_examples,10,15703412347.jpg,1282865000026,14,дом снаружи / двор,train_dev_pool,0.8298264642048594,1,data/raw/train_images/train_images/15703412347.jpg
+raw,metadata,holdout_like_train_examples,11,15890054297.jpg,1370290505205,8,туалет,train_dev_pool,0.8249196115791849,3,data/raw/train_images/train_images/15890054297.jpg
+raw,metadata,holdout_like_train_examples,12,15704216432.jpg,1363395752791,16,другое,train_dev_pool,0.8234790898969867,1,data/raw/train_images/train_images/15704216432.jpg
+raw,metadata,holdout_like_train_examples,13,15986666622.jpg,1373725750385,13,вид из окна / с балкона,train_dev_pool,0.8215652681729757,1,data/raw/train_images/train_images/15986666622.jpg
+raw,metadata,holdout_like_train_examples,14,15678732862.jpg,1308311250094,7,ванная комната,train_dev_pool,0.8126503450447712,0,data/raw/train_images/train_images/15678732862.jpg
+raw,metadata,holdout_like_train_examples,15,15502273355.jpg,1354348751719,19,комната без мебели,train_dev_pool,0.796205837704642,2,data/raw/train_images/train_images/15502273355.jpg
+raw,metadata,holdout_like_train_examples,16,15748859417.jpg,1340933250062,16,другое,train_dev_pool,0.7956214895018651,1,data/raw/train_images/train_images/15748859417.jpg
+raw,metadata,holdout_like_train_examples,17,15835132515.jpg,1368163755347,12,балкон / лоджия,train_dev_pool,0.787423378064303,4,data/raw/train_images/train_images/15835132515.jpg
+raw,metadata,holdout_like_train_examples,18,14472819385.jpg,1309881750202,16,другое,train_dev_pool,0.7857753813251587,3,data/raw/train_images/train_images/14472819385.jpg
+raw,metadata,holdout_like_train_examples,19,15834869010.jpg,1368169502714,16,другое,train_dev_pool,0.7623517023908539,1,data/raw/train_images/train_images/15834869010.jpg
+raw,metadata,holdout_like_train_examples,20,15432850052.jpg,1352189252047,0,кухня / столовая,train_dev_pool,0.7619823397543694,1,data/raw/train_images/train_images/15432850052.jpg
+raw,metadata,train_like_holdout_examples,1,14383835948.jpg,1307666250646,17,предметы интерьера / быт.техника,shadow_holdout,0.30236083147471843,0,data/raw/val_images/val_images/14383835948.jpg
+raw,metadata,train_like_holdout_examples,2,15803926481.jpg,1367085503633,1,кухня-гостиная,shadow_holdout,0.30802393818752344,3,data/raw/val_images/val_images/15803926481.jpg
+raw,metadata,train_like_holdout_examples,3,14474443479.jpg,1309866250969,0,кухня / столовая,shadow_holdout,0.31082458531019036,0,data/raw/val_images/val_images/14474443479.jpg
+raw,metadata,train_like_holdout_examples,4,14395798694.jpg,1309772252076,0,кухня / столовая,shadow_holdout,0.3119034278989397,0,data/raw/val_images/val_images/14395798694.jpg
+raw,metadata,train_like_holdout_examples,5,14465710523.jpg,1309667501167,3,гостиная,shadow_holdout,0.3134179804294268,0,data/raw/val_images/val_images/14465710523.jpg
+raw,metadata,train_like_holdout_examples,6,14465723841.jpg,1309667501167,3,гостиная,shadow_holdout,0.3134179804294268,0,data/raw/val_images/val_images/14465723841.jpg
+raw,metadata,train_like_holdout_examples,7,14489708423.jpg,1310264500339,6,детская,shadow_holdout,0.35110249884514466,2,data/raw/val_images/val_images/14489708423.jpg
+raw,metadata,train_like_holdout_examples,8,14489708472.jpg,1310264500339,4,спальня,shadow_holdout,0.35110249884514466,2,data/raw/val_images/val_images/14489708472.jpg
+raw,metadata,train_like_holdout_examples,9,14489708526.jpg,1310264500339,6,детская,shadow_holdout,0.35110249884514466,2,data/raw/val_images/val_images/14489708526.jpg
+raw,metadata,train_like_holdout_examples,10,14486292306.jpg,1310218001296,12,балкон / лоджия,shadow_holdout,0.3863710919210813,0,data/raw/val_images/val_images/14486292306.jpg
+raw,metadata,train_like_holdout_examples,11,14486292716.jpg,1310218001296,19,комната без мебели,shadow_holdout,0.3863710919210813,0,data/raw/val_images/val_images/14486292716.jpg
+raw,metadata,train_like_holdout_examples,12,15620932559.jpg,1287376251246,6,детская,shadow_holdout,0.3871006293191961,1,data/raw/val_images/val_images/15620932559.jpg
+raw,metadata,train_like_holdout_examples,13,15838959315.jpg,1368283501631,4,спальня,shadow_holdout,0.38724151897443865,0,data/raw/val_images/val_images/15838959315.jpg
+raw,metadata,train_like_holdout_examples,14,15593681262.jpg,1358892001131,6,детская,shadow_holdout,0.3875839767805125,3,data/raw/val_images/val_images/15593681262.jpg
+raw,metadata,train_like_holdout_examples,15,14478121480.jpg,1309913500532,19,комната без мебели,shadow_holdout,0.38823874152695237,1,data/raw/val_images/val_images/14478121480.jpg
+raw,metadata,train_like_holdout_examples,16,14493462625.jpg,1310380251781,2,универсальная комната,shadow_holdout,0.38889371027132075,1,data/raw/val_images/val_images/14493462625.jpg
+raw,metadata,train_like_holdout_examples,17,14449760914.jpg,1309354250671,16,другое,shadow_holdout,0.399757225436052,3,data/raw/val_images/val_images/14449760914.jpg
+raw,metadata,train_like_holdout_examples,18,14361874520.jpg,1306878751747,16,другое,shadow_holdout,0.39978166559069894,3,data/raw/val_images/val_images/14361874520.jpg
+raw,metadata,train_like_holdout_examples,19,14488254283.jpg,1310239750445,16,другое,shadow_holdout,0.4007352197047016,3,data/raw/val_images/val_images/14488254283.jpg
+raw,metadata,train_like_holdout_examples,20,14443810553.jpg,1309223000194,12,балкон / лоджия,shadow_holdout,0.405545813141518,0,data/raw/val_images/val_images/14443810553.jpg
+raw,metadata,confidently_separated_holdout_examples,1,15808564023.jpg,1367201502375,5,кабинет,shadow_holdout,0.8411624239224247,1,data/raw/val_images/val_images/15808564023.jpg
+raw,metadata,confidently_separated_holdout_examples,2,15626086434.jpg,1359028000503,16,другое,shadow_holdout,0.8392793038377696,4,data/raw/val_images/val_images/15626086434.jpg
+raw,metadata,confidently_separated_holdout_examples,3,14449760909.jpg,1309354250671,16,другое,shadow_holdout,0.8217365004485653,3,data/raw/val_images/val_images/14449760909.jpg
+raw,metadata,confidently_separated_holdout_examples,4,15808331145.jpg,1367197502177,6,детская,shadow_holdout,0.7566146954250619,3,data/raw/val_images/val_images/15808331145.jpg
+raw,metadata,confidently_separated_holdout_examples,5,14476994681.jpg,1309916000003,16,другое,shadow_holdout,0.7289052202967978,2,data/raw/val_images/val_images/14476994681.jpg
+raw,metadata,confidently_separated_holdout_examples,6,15816500049.jpg,1367607505990,17,предметы интерьера / быт.техника,shadow_holdout,0.7141253889072237,0,data/raw/val_images/val_images/15816500049.jpg
+raw,metadata,confidently_separated_holdout_examples,7,15807164544.jpg,1367201752942,5,кабинет,shadow_holdout,0.71352394394341,2,data/raw/val_images/val_images/15807164544.jpg
+raw,metadata,confidently_separated_holdout_examples,8,14490595634.jpg,1310312500913,16,другое,shadow_holdout,0.710790670009056,1,data/raw/val_images/val_images/14490595634.jpg
+raw,metadata,confidently_separated_holdout_examples,9,14298463344.jpg,1303148501754,16,другое,shadow_holdout,0.7054668077443236,2,data/raw/val_images/val_images/14298463344.jpg
+raw,metadata,confidently_separated_holdout_examples,10,14484146939.jpg,1310164751491,16,другое,shadow_holdout,0.6724962279859835,4,data/raw/val_images/val_images/14484146939.jpg
+raw,metadata,confidently_separated_holdout_examples,11,15824373816.jpg,1367740500136,16,другое,shadow_holdout,0.6711373971487177,4,data/raw/val_images/val_images/15824373816.jpg
+raw,metadata,confidently_separated_holdout_examples,12,15815546103.jpg,1367610508389,17,предметы интерьера / быт.техника,shadow_holdout,0.6598912485850891,4,data/raw/val_images/val_images/15815546103.jpg
+raw,metadata,confidently_separated_holdout_examples,13,15641457555.jpg,1360977500552,11,гардеробная / кладовая / постирочная,shadow_holdout,0.6532223217622367,3,data/raw/val_images/val_images/15641457555.jpg
+raw,metadata,confidently_separated_holdout_examples,14,15560971349.jpg,1362721754229,11,гардеробная / кладовая / постирочная,shadow_holdout,0.6531509728801638,3,data/raw/val_images/val_images/15560971349.jpg
+raw,metadata,confidently_separated_holdout_examples,15,15794366460.jpg,1366713751032,5,кабинет,shadow_holdout,0.6531278981258481,3,data/raw/val_images/val_images/15794366460.jpg
+raw,metadata,confidently_separated_holdout_examples,16,15802684133.jpg,1367037501391,5,кабинет,shadow_holdout,0.6531278981258481,3,data/raw/val_images/val_images/15802684133.jpg
+raw,metadata,confidently_separated_holdout_examples,17,15808499817.jpg,1367201754182,5,кабинет,shadow_holdout,0.6531278981258481,3,data/raw/val_images/val_images/15808499817.jpg
+raw,metadata,confidently_separated_holdout_examples,18,15825123785.jpg,1367783750156,17,предметы интерьера / быт.техника,shadow_holdout,0.6531278981258481,3,data/raw/val_images/val_images/15825123785.jpg
+raw,metadata,confidently_separated_holdout_examples,19,15191237004.jpg,1352190501609,16,другое,shadow_holdout,0.6523886644987185,2,data/raw/val_images/val_images/15191237004.jpg
+raw,metadata,confidently_separated_holdout_examples,20,15788528387.jpg,1366551500414,16,другое,shadow_holdout,0.6523886644987185,2,data/raw/val_images/val_images/15788528387.jpg
+class_balanced,metadata,holdout_like_train_examples,1,15822850731.jpg,1367721002276,17,предметы интерьера / быт.техника,train_dev_pool,0.7960379161860478,1,data/raw/train_images/train_images/15822850731.jpg
+class_balanced,metadata,holdout_like_train_examples,2,15797238372.jpg,1366927751007,16,другое,train_dev_pool,0.7253227003682245,1,data/raw/train_images/train_images/15797238372.jpg
+class_balanced,metadata,holdout_like_train_examples,3,15777561099.jpg,1367781250889,17,предметы интерьера / быт.техника,train_dev_pool,0.7164688119544157,2,data/raw/train_images/train_images/15777561099.jpg
+class_balanced,metadata,holdout_like_train_examples,4,14360106721.jpg,1306860500354,16,другое,train_dev_pool,0.7040820914645894,4,data/raw/train_images/train_images/14360106721.jpg
+class_balanced,metadata,holdout_like_train_examples,5,15462841454.jpg,1353561750706,16,другое,train_dev_pool,0.699852066359107,0,data/raw/train_images/train_images/15462841454.jpg
+class_balanced,metadata,holdout_like_train_examples,6,15494012798.jpg,1354931250948,16,другое,train_dev_pool,0.6914095476688874,4,data/raw/train_images/train_images/15494012798.jpg
+class_balanced,metadata,holdout_like_train_examples,7,15819502268.jpg,1367634504771,16,другое,train_dev_pool,0.6914095476688874,4,data/raw/train_images/train_images/15819502268.jpg
+class_balanced,metadata,holdout_like_train_examples,8,15513216430.jpg,1355607751195,16,другое,train_dev_pool,0.6912493378973836,3,data/raw/train_images/train_images/15513216430.jpg
+class_balanced,metadata,holdout_like_train_examples,9,15826169689.jpg,1367842000933,17,предметы интерьера / быт.техника,train_dev_pool,0.68308635622059,3,data/raw/train_images/train_images/15826169689.jpg
+class_balanced,metadata,holdout_like_train_examples,10,14442738705.jpg,1309279500622,16,другое,train_dev_pool,0.6590447538382519,4,data/raw/train_images/train_images/14442738705.jpg
+class_balanced,metadata,holdout_like_train_examples,11,16015008358.jpg,1374745500178,4,спальня,train_dev_pool,0.6445030138964292,2,data/raw/train_images/train_images/16015008358.jpg
+class_balanced,metadata,holdout_like_train_examples,12,14294820629.jpg,1358173503704,3,гостиная,train_dev_pool,0.6384035358824678,4,data/raw/train_images/train_images/14294820629.jpg
+class_balanced,metadata,holdout_like_train_examples,13,15983849203.jpg,1373658504144,16,другое,train_dev_pool,0.6356022203699754,2,data/raw/train_images/train_images/15983849203.jpg
+class_balanced,metadata,holdout_like_train_examples,14,15873844334.jpg,1352925753300,9,совмещенный санузел,train_dev_pool,0.6267946647439911,1,data/raw/train_images/train_images/15873844334.jpg
+class_balanced,metadata,holdout_like_train_examples,15,15835870426.jpg,1368224250619,9,совмещенный санузел,train_dev_pool,0.6143623153710619,3,data/raw/train_images/train_images/15835870426.jpg
+class_balanced,metadata,holdout_like_train_examples,16,15523914180.jpg,1304892000336,11,гардеробная / кладовая / постирочная,train_dev_pool,0.5969167982214709,3,data/raw/train_images/train_images/15523914180.jpg
+class_balanced,metadata,holdout_like_train_examples,17,15705122766.jpg,1363399750493,19,комната без мебели,train_dev_pool,0.594916027094703,2,data/raw/train_images/train_images/15705122766.jpg
+class_balanced,metadata,holdout_like_train_examples,18,13984481299.jpg,1284574750410,16,другое,train_dev_pool,0.5885834598004462,1,data/raw/train_images/train_images/13984481299.jpg
+class_balanced,metadata,holdout_like_train_examples,19,15825545197.jpg,1367780252750,17,предметы интерьера / быт.техника,train_dev_pool,0.5885797121893258,4,data/raw/train_images/train_images/15825545197.jpg
+class_balanced,metadata,holdout_like_train_examples,20,14472819385.jpg,1309881750202,16,другое,train_dev_pool,0.585687690068835,2,data/raw/train_images/train_images/14472819385.jpg
+class_balanced,metadata,train_like_holdout_examples,1,14493462625.jpg,1310380251781,2,универсальная комната,shadow_holdout,0.363159666362707,1,data/raw/val_images/val_images/14493462625.jpg
+class_balanced,metadata,train_like_holdout_examples,2,14402657642.jpg,1308453750858,9,совмещенный санузел,shadow_holdout,0.3751275115169261,1,data/raw/val_images/val_images/14402657642.jpg
+class_balanced,metadata,train_like_holdout_examples,3,14383835948.jpg,1307666250646,17,предметы интерьера / быт.техника,shadow_holdout,0.37675308821930037,1,data/raw/val_images/val_images/14383835948.jpg
+class_balanced,metadata,train_like_holdout_examples,4,14364337324.jpg,1306967250113,10,коридор / прихожая,shadow_holdout,0.38180275163350785,2,data/raw/val_images/val_images/14364337324.jpg
+class_balanced,metadata,train_like_holdout_examples,5,14407572822.jpg,1308466000992,9,совмещенный санузел,shadow_holdout,0.38180275163350785,2,data/raw/val_images/val_images/14407572822.jpg
+class_balanced,metadata,train_like_holdout_examples,6,14471306112.jpg,1309771500189,11,гардеробная / кладовая / постирочная,shadow_holdout,0.38180275163350785,2,data/raw/val_images/val_images/14471306112.jpg
+class_balanced,metadata,train_like_holdout_examples,7,14485306070.jpg,1310184251683,10,коридор / прихожая,shadow_holdout,0.38180275163350785,2,data/raw/val_images/val_images/14485306070.jpg
+class_balanced,metadata,train_like_holdout_examples,8,15803926481.jpg,1367085503633,1,кухня-гостиная,shadow_holdout,0.3859844331353792,3,data/raw/val_images/val_images/15803926481.jpg
+class_balanced,metadata,train_like_holdout_examples,9,14478121480.jpg,1309913500532,19,комната без мебели,shadow_holdout,0.38654092436852566,0,data/raw/val_images/val_images/14478121480.jpg
+class_balanced,metadata,train_like_holdout_examples,10,14138643172.jpg,1293968251777,11,гардеробная / кладовая / постирочная,shadow_holdout,0.3911347371659276,4,data/raw/val_images/val_images/14138643172.jpg
+class_balanced,metadata,train_like_holdout_examples,11,14473810995.jpg,1309739250539,9,совмещенный санузел,shadow_holdout,0.3911347371659276,4,data/raw/val_images/val_images/14473810995.jpg
+class_balanced,metadata,train_like_holdout_examples,12,14544203524.jpg,1312033751028,3,гостиная,shadow_holdout,0.3911347371659276,4,data/raw/val_images/val_images/14544203524.jpg
+class_balanced,metadata,train_like_holdout_examples,13,14480195665.jpg,1309989500153,16,другое,shadow_holdout,0.3912413123216055,2,data/raw/val_images/val_images/14480195665.jpg
+class_balanced,metadata,train_like_holdout_examples,14,14361874520.jpg,1306878751747,16,другое,shadow_holdout,0.39137875996587623,2,data/raw/val_images/val_images/14361874520.jpg
+class_balanced,metadata,train_like_holdout_examples,15,14493276577.jpg,1310374251643,3,гостиная,shadow_holdout,0.3952836485510025,3,data/raw/val_images/val_images/14493276577.jpg
+class_balanced,metadata,train_like_holdout_examples,16,14449760914.jpg,1309354250671,16,другое,shadow_holdout,0.3956349190044704,0,data/raw/val_images/val_images/14449760914.jpg
+class_balanced,metadata,train_like_holdout_examples,17,14418076213.jpg,1309574000079,16,другое,shadow_holdout,0.3956349190044704,0,data/raw/val_images/val_images/14418076213.jpg
+class_balanced,metadata,train_like_holdout_examples,18,14463869934.jpg,1309901500882,16,другое,shadow_holdout,0.39567589911720863,0,data/raw/val_images/val_images/14463869934.jpg
+class_balanced,metadata,train_like_holdout_examples,19,14488254283.jpg,1310239750445,16,другое,shadow_holdout,0.39727526137687574,0,data/raw/val_images/val_images/14488254283.jpg
+class_balanced,metadata,train_like_holdout_examples,20,14365860422.jpg,1307049500646,12,балкон / лоджия,shadow_holdout,0.40227354568590445,4,data/raw/val_images/val_images/14365860422.jpg
+class_balanced,metadata,confidently_separated_holdout_examples,1,15808331145.jpg,1367197502177,6,детская,shadow_holdout,0.7539448270966597,2,data/raw/val_images/val_images/15808331145.jpg
+class_balanced,metadata,confidently_separated_holdout_examples,2,15824373816.jpg,1367740500136,16,другое,shadow_holdout,0.7534091781297932,2,data/raw/val_images/val_images/15824373816.jpg
+class_balanced,metadata,confidently_separated_holdout_examples,3,15311243092.jpg,1355152500150,11,гардеробная / кладовая / постирочная,shadow_holdout,0.7426426276891153,2,data/raw/val_images/val_images/15311243092.jpg
+class_balanced,metadata,confidently_separated_holdout_examples,4,15793846726.jpg,1366707500586,5,кабинет,shadow_holdout,0.7370152935598775,1,data/raw/val_images/val_images/15793846726.jpg
+class_balanced,metadata,confidently_separated_holdout_examples,5,15804557108.jpg,1367092500010,5,кабинет,shadow_holdout,0.7370152935598775,1,data/raw/val_images/val_images/15804557108.jpg
+class_balanced,metadata,confidently_separated_holdout_examples,6,15808330011.jpg,1367196003038,5,кабинет,shadow_holdout,0.736726912772225,1,data/raw/val_images/val_images/15808330011.jpg
+class_balanced,metadata,confidently_separated_holdout_examples,7,15384587484.jpg,1361027251497,11,гардеробная / кладовая / постирочная,shadow_holdout,0.7250262815208965,1,data/raw/val_images/val_images/15384587484.jpg
+class_balanced,metadata,confidently_separated_holdout_examples,8,15810698244.jpg,1367294750999,5,кабинет,shadow_holdout,0.7164688119544157,2,data/raw/val_images/val_images/15810698244.jpg
+class_balanced,metadata,confidently_separated_holdout_examples,9,15816500049.jpg,1367607505990,17,предметы интерьера / быт.техника,shadow_holdout,0.7100053079949423,4,data/raw/val_images/val_images/15816500049.jpg
+class_balanced,metadata,confidently_separated_holdout_examples,10,14476994681.jpg,1309916000003,16,другое,shadow_holdout,0.704830213571885,4,data/raw/val_images/val_images/14476994681.jpg
+class_balanced,metadata,confidently_separated_holdout_examples,11,15807164544.jpg,1367201752942,5,кабинет,shadow_holdout,0.7011322785786595,4,data/raw/val_images/val_images/15807164544.jpg
+class_balanced,metadata,confidently_separated_holdout_examples,12,15815546103.jpg,1367610508389,17,предметы интерьера / быт.техника,shadow_holdout,0.7011322785786595,4,data/raw/val_images/val_images/15815546103.jpg
+class_balanced,metadata,confidently_separated_holdout_examples,13,15191237004.jpg,1352190501609,16,другое,shadow_holdout,0.699852066359107,0,data/raw/val_images/val_images/15191237004.jpg
+class_balanced,metadata,confidently_separated_holdout_examples,14,15794344412.jpg,1366710503378,5,кабинет,shadow_holdout,0.699852066359107,0,data/raw/val_images/val_images/15794344412.jpg
+class_balanced,metadata,confidently_separated_holdout_examples,15,15808546939.jpg,1367199003782,5,кабинет,shadow_holdout,0.699852066359107,0,data/raw/val_images/val_images/15808546939.jpg
+class_balanced,metadata,confidently_separated_holdout_examples,16,14478746655.jpg,1309969000184,16,другое,shadow_holdout,0.6990955047012949,0,data/raw/val_images/val_images/14478746655.jpg
+class_balanced,metadata,confidently_separated_holdout_examples,17,15560971349.jpg,1362721754229,11,гардеробная / кладовая / постирочная,shadow_holdout,0.691572267320052,4,data/raw/val_images/val_images/15560971349.jpg
+class_balanced,metadata,confidently_separated_holdout_examples,18,15802684133.jpg,1367037501391,5,кабинет,shadow_holdout,0.6914095476688874,4,data/raw/val_images/val_images/15802684133.jpg
+class_balanced,metadata,confidently_separated_holdout_examples,19,15783265318.jpg,1366469752962,6,детская,shadow_holdout,0.6912493378973836,3,data/raw/val_images/val_images/15783265318.jpg
+class_balanced,metadata,confidently_separated_holdout_examples,20,15652419528.jpg,1361538250666,16,другое,shadow_holdout,0.6909250566338077,3,data/raw/val_images/val_images/15652419528.jpg
+raw,visual,holdout_like_train_examples,1,15832939440.jpg,1368115250810,11,гардеробная / кладовая / постирочная,train_dev_pool,0.9999704954069297,0,data/raw/train_images/train_images/15832939440.jpg
+raw,visual,holdout_like_train_examples,2,15912037326.jpg,1371881251793,9,совмещенный санузел,train_dev_pool,0.9999246963980911,0,data/raw/train_images/train_images/15912037326.jpg
+raw,visual,holdout_like_train_examples,3,15357922237.jpg,1354913251238,10,коридор / прихожая,train_dev_pool,0.9999159158523199,3,data/raw/train_images/train_images/15357922237.jpg
+raw,visual,holdout_like_train_examples,4,15817144192.jpg,1367609000276,17,предметы интерьера / быт.техника,train_dev_pool,0.9998641094031853,3,data/raw/train_images/train_images/15817144192.jpg
+raw,visual,holdout_like_train_examples,5,15839333898.jpg,1368339001274,16,другое,train_dev_pool,0.9998489302440571,3,data/raw/train_images/train_images/15839333898.jpg
+raw,visual,holdout_like_train_examples,6,15871683903.jpg,1369779500776,10,коридор / прихожая,train_dev_pool,0.9997967744332512,3,data/raw/train_images/train_images/15871683903.jpg
+raw,visual,holdout_like_train_examples,7,14491223248.jpg,1310293000413,14,дом снаружи / двор,train_dev_pool,0.999725460479493,3,data/raw/train_images/train_images/14491223248.jpg
+raw,visual,holdout_like_train_examples,8,15510847236.jpg,1352241251531,18,не могу дать ответ / не ясно,train_dev_pool,0.9996346371469478,1,data/raw/train_images/train_images/15510847236.jpg
+raw,visual,holdout_like_train_examples,9,15462142667.jpg,1306880500662,16,другое,train_dev_pool,0.999633368463622,1,data/raw/train_images/train_images/15462142667.jpg
+raw,visual,holdout_like_train_examples,10,14076574536.jpg,1290020250535,0,кухня / столовая,train_dev_pool,0.9996228045989876,4,data/raw/train_images/train_images/14076574536.jpg
+raw,visual,holdout_like_train_examples,11,15812156933.jpg,1367464750324,5,кабинет,train_dev_pool,0.9996082634725835,2,data/raw/train_images/train_images/15812156933.jpg
+raw,visual,holdout_like_train_examples,12,15994771571.jpg,1374061254019,0,кухня / столовая,train_dev_pool,0.9995730421765568,3,data/raw/train_images/train_images/15994771571.jpg
+raw,visual,holdout_like_train_examples,13,15821356151.jpg,1367041254064,16,другое,train_dev_pool,0.9994555106714218,4,data/raw/train_images/train_images/15821356151.jpg
+raw,visual,holdout_like_train_examples,14,15905730475.jpg,1370835505490,16,другое,train_dev_pool,0.9992567518913146,4,data/raw/train_images/train_images/15905730475.jpg
+raw,visual,holdout_like_train_examples,15,15274880022.jpg,1297023250089,6,детская,train_dev_pool,0.9992483529356495,1,data/raw/train_images/train_images/15274880022.jpg
+raw,visual,holdout_like_train_examples,16,15831740266.jpg,1368115503853,3,гостиная,train_dev_pool,0.9991946545170686,2,data/raw/train_images/train_images/15831740266.jpg
+raw,visual,holdout_like_train_examples,17,15605764084.jpg,1359493002413,16,другое,train_dev_pool,0.9991470896240752,4,data/raw/train_images/train_images/15605764084.jpg
+raw,visual,holdout_like_train_examples,18,15522656412.jpg,1368568750290,8,туалет,train_dev_pool,0.9989848493693197,0,data/raw/train_images/train_images/15522656412.jpg
+raw,visual,holdout_like_train_examples,19,14444288141.jpg,1309221500491,15,подъезд / лестничная площадка,train_dev_pool,0.9989781018612814,4,data/raw/train_images/train_images/14444288141.jpg
+raw,visual,holdout_like_train_examples,20,15540293712.jpg,1353369502021,4,спальня,train_dev_pool,0.9989500911058447,0,data/raw/train_images/train_images/15540293712.jpg
+raw,visual,train_like_holdout_examples,1,15837808158.jpg,1368282001721,16,другое,shadow_holdout,3.567118385992185e-07,2,data/raw/val_images/val_images/15837808158.jpg
+raw,visual,train_like_holdout_examples,2,14443324073.jpg,1309186501684,14,дом снаружи / двор,shadow_holdout,5.038545979172259e-07,3,data/raw/val_images/val_images/14443324073.jpg
+raw,visual,train_like_holdout_examples,3,14422831554.jpg,1308733251365,3,гостиная,shadow_holdout,8.382312843119438e-07,3,data/raw/val_images/val_images/14422831554.jpg
+raw,visual,train_like_holdout_examples,4,14481925568.jpg,1310131251902,13,вид из окна / с балкона,shadow_holdout,1.2349953953531094e-05,4,data/raw/val_images/val_images/14481925568.jpg
+raw,visual,train_like_holdout_examples,5,14435393176.jpg,1309065250993,15,подъезд / лестничная площадка,shadow_holdout,5.294863408992894e-05,1,data/raw/val_images/val_images/14435393176.jpg
+raw,visual,train_like_holdout_examples,6,14345294059.jpg,1306218000276,3,гостиная,shadow_holdout,5.466266039082076e-05,0,data/raw/val_images/val_images/14345294059.jpg
+raw,visual,train_like_holdout_examples,7,14394951182.jpg,1308217250307,8,туалет,shadow_holdout,5.631921235454448e-05,2,data/raw/val_images/val_images/14394951182.jpg
+raw,visual,train_like_holdout_examples,8,15818176434.jpg,1367624751377,17,предметы интерьера / быт.техника,shadow_holdout,7.139228046487348e-05,3,data/raw/val_images/val_images/15818176434.jpg
+raw,visual,train_like_holdout_examples,9,15536612047.jpg,1356607250202,8,туалет,shadow_holdout,7.882960219987013e-05,0,data/raw/val_images/val_images/15536612047.jpg
+raw,visual,train_like_holdout_examples,10,14365860422.jpg,1307049500646,12,балкон / лоджия,shadow_holdout,0.00011308318233876089,1,data/raw/val_images/val_images/14365860422.jpg
+raw,visual,train_like_holdout_examples,11,14409793431.jpg,1308475750054,13,вид из окна / с балкона,shadow_holdout,0.00012281018850430721,2,data/raw/val_images/val_images/14409793431.jpg
+raw,visual,train_like_holdout_examples,12,15384764600.jpg,1350203250978,10,коридор / прихожая,shadow_holdout,0.00015784141329753696,2,data/raw/val_images/val_images/15384764600.jpg
+raw,visual,train_like_holdout_examples,13,14474012025.jpg,1309831251434,15,подъезд / лестничная площадка,shadow_holdout,0.00018875990344776702,4,data/raw/val_images/val_images/14474012025.jpg
+raw,visual,train_like_holdout_examples,14,14379905414.jpg,1307517500733,7,ванная комната,shadow_holdout,0.0001926935532291907,0,data/raw/val_images/val_images/14379905414.jpg
+raw,visual,train_like_holdout_examples,15,14422759190.jpg,1307817500008,7,ванная комната,shadow_holdout,0.0002204476129324344,3,data/raw/val_images/val_images/14422759190.jpg
+raw,visual,train_like_holdout_examples,16,14495169461.jpg,1310435500232,14,дом снаружи / двор,shadow_holdout,0.00022632822874464343,3,data/raw/val_images/val_images/14495169461.jpg
+raw,visual,train_like_holdout_examples,17,14480195665.jpg,1309989500153,16,другое,shadow_holdout,0.00023699072001709122,2,data/raw/val_images/val_images/14480195665.jpg
+raw,visual,train_like_holdout_examples,18,15384587484.jpg,1361027251497,11,гардеробная / кладовая / постирочная,shadow_holdout,0.0002521076766705595,0,data/raw/val_images/val_images/15384587484.jpg
+raw,visual,train_like_holdout_examples,19,14492958297.jpg,1310334501309,13,вид из окна / с балкона,shadow_holdout,0.0002567192043755069,3,data/raw/val_images/val_images/14492958297.jpg
+raw,visual,train_like_holdout_examples,20,14371203478.jpg,1307207500175,7,ванная комната,shadow_holdout,0.0002704138308151928,2,data/raw/val_images/val_images/14371203478.jpg
+raw,visual,confidently_separated_holdout_examples,1,15837793382.jpg,1368282251714,16,другое,shadow_holdout,0.999915844082089,0,data/raw/val_images/val_images/15837793382.jpg
+raw,visual,confidently_separated_holdout_examples,2,14473214210.jpg,1309791500925,13,вид из окна / с балкона,shadow_holdout,0.9999116060158878,0,data/raw/val_images/val_images/14473214210.jpg
+raw,visual,confidently_separated_holdout_examples,3,15794366460.jpg,1366713751032,5,кабинет,shadow_holdout,0.9998133751859479,3,data/raw/val_images/val_images/15794366460.jpg
+raw,visual,confidently_separated_holdout_examples,4,16008664622.jpg,1374554251489,3,гостиная,shadow_holdout,0.9997662884837485,2,data/raw/val_images/val_images/16008664622.jpg
+raw,visual,confidently_separated_holdout_examples,5,14148783505.jpg,1294523251751,4,спальня,shadow_holdout,0.999468836092273,4,data/raw/val_images/val_images/14148783505.jpg
+raw,visual,confidently_separated_holdout_examples,6,15893854697.jpg,1370399501229,5,кабинет,shadow_holdout,0.9992613906269601,4,data/raw/val_images/val_images/15893854697.jpg
+raw,visual,confidently_separated_holdout_examples,7,15614846424.jpg,1359562750953,11,гардеробная / кладовая / постирочная,shadow_holdout,0.9991715449162851,0,data/raw/val_images/val_images/15614846424.jpg
+raw,visual,confidently_separated_holdout_examples,8,14490184962.jpg,1310282500922,12,балкон / лоджия,shadow_holdout,0.9990775631463426,2,data/raw/val_images/val_images/14490184962.jpg
+raw,visual,confidently_separated_holdout_examples,9,15802684133.jpg,1367037501391,5,кабинет,shadow_holdout,0.9985971930549257,3,data/raw/val_images/val_images/15802684133.jpg
+raw,visual,confidently_separated_holdout_examples,10,15808499817.jpg,1367201754182,5,кабинет,shadow_holdout,0.9982545745149127,3,data/raw/val_images/val_images/15808499817.jpg
+raw,visual,confidently_separated_holdout_examples,11,14449020396.jpg,1309352250647,15,подъезд / лестничная площадка,shadow_holdout,0.9958499652839711,2,data/raw/val_images/val_images/14449020396.jpg
+raw,visual,confidently_separated_holdout_examples,12,15620932559.jpg,1287376251246,6,детская,shadow_holdout,0.9958111777550955,1,data/raw/val_images/val_images/15620932559.jpg
+raw,visual,confidently_separated_holdout_examples,13,15793846726.jpg,1366707500586,5,кабинет,shadow_holdout,0.9936980786498381,0,data/raw/val_images/val_images/15793846726.jpg
+raw,visual,confidently_separated_holdout_examples,14,14297836270.jpg,1303142252406,2,универсальная комната,shadow_holdout,0.9933746721419626,0,data/raw/val_images/val_images/14297836270.jpg
+raw,visual,confidently_separated_holdout_examples,15,15560978182.jpg,1362715254230,11,гардеробная / кладовая / постирочная,shadow_holdout,0.9927634221428967,4,data/raw/val_images/val_images/15560978182.jpg
+raw,visual,confidently_separated_holdout_examples,16,14437624076.jpg,1309123500918,1,кухня-гостиная,shadow_holdout,0.992420703107727,3,data/raw/val_images/val_images/14437624076.jpg
+raw,visual,confidently_separated_holdout_examples,17,15804557108.jpg,1367092500010,5,кабинет,shadow_holdout,0.9922529571296164,4,data/raw/val_images/val_images/15804557108.jpg
+raw,visual,confidently_separated_holdout_examples,18,15800774442.jpg,1367037251177,5,кабинет,shadow_holdout,0.9911853956477772,2,data/raw/val_images/val_images/15800774442.jpg
+raw,visual,confidently_separated_holdout_examples,19,15788528387.jpg,1366551500414,16,другое,shadow_holdout,0.9907444054028056,2,data/raw/val_images/val_images/15788528387.jpg
+raw,visual,confidently_separated_holdout_examples,20,14463868161.jpg,1309901500882,17,предметы интерьера / быт.техника,shadow_holdout,0.990444639109471,4,data/raw/val_images/val_images/14463868161.jpg
+class_balanced,visual,holdout_like_train_examples,1,13984481299.jpg,1284574750410,16,другое,train_dev_pool,0.9999999999999909,1,data/raw/train_images/train_images/13984481299.jpg
+class_balanced,visual,holdout_like_train_examples,2,15522351907.jpg,1302734750750,9,совмещенный санузел,train_dev_pool,0.9999999989156085,1,data/raw/train_images/train_images/15522351907.jpg
+class_balanced,visual,holdout_like_train_examples,3,15823167608.jpg,1367721502869,16,другое,train_dev_pool,0.9999998851641391,1,data/raw/train_images/train_images/15823167608.jpg
+class_balanced,visual,holdout_like_train_examples,4,14592667848.jpg,1313849750217,3,гостиная,train_dev_pool,0.9999997872626187,0,data/raw/train_images/train_images/14592667848.jpg
+class_balanced,visual,holdout_like_train_examples,5,15400214643.jpg,1351283000473,9,совмещенный санузел,train_dev_pool,0.9999996911727341,0,data/raw/train_images/train_images/15400214643.jpg
+class_balanced,visual,holdout_like_train_examples,6,15902080813.jpg,1370757500560,15,подъезд / лестничная площадка,train_dev_pool,0.999999139423479,1,data/raw/train_images/train_images/15902080813.jpg
+class_balanced,visual,holdout_like_train_examples,7,15269218222.jpg,1351199001428,3,гостиная,train_dev_pool,0.9999988530153914,0,data/raw/train_images/train_images/15269218222.jpg
+class_balanced,visual,holdout_like_train_examples,8,15496562512.jpg,1352809501585,12,балкон / лоджия,train_dev_pool,0.9999971219385552,1,data/raw/train_images/train_images/15496562512.jpg
+class_balanced,visual,holdout_like_train_examples,9,15994771571.jpg,1374061254019,0,кухня / столовая,train_dev_pool,0.9999954169070652,3,data/raw/train_images/train_images/15994771571.jpg
+class_balanced,visual,holdout_like_train_examples,10,15732392034.jpg,1364350751800,11,гардеробная / кладовая / постирочная,train_dev_pool,0.9999918796327681,4,data/raw/train_images/train_images/15732392034.jpg
+class_balanced,visual,holdout_like_train_examples,11,14044014295.jpg,1288279500005,14,дом снаружи / двор,train_dev_pool,0.9999908241903583,1,data/raw/train_images/train_images/14044014295.jpg
+class_balanced,visual,holdout_like_train_examples,12,14470056361.jpg,1309734500564,14,дом снаружи / двор,train_dev_pool,0.9999872062859158,1,data/raw/train_images/train_images/14470056361.jpg
+class_balanced,visual,holdout_like_train_examples,13,14315705897.jpg,1304426250366,4,спальня,train_dev_pool,0.9999871942602274,4,data/raw/train_images/train_images/14315705897.jpg
+class_balanced,visual,holdout_like_train_examples,14,14185932634.jpg,1371473003711,11,гардеробная / кладовая / постирочная,train_dev_pool,0.9999718521991822,2,data/raw/train_images/train_images/14185932634.jpg
+class_balanced,visual,holdout_like_train_examples,15,14444899659.jpg,1293246250943,16,другое,train_dev_pool,0.9999685500907647,4,data/raw/train_images/train_images/14444899659.jpg
+class_balanced,visual,holdout_like_train_examples,16,15485213501.jpg,1354539253188,15,подъезд / лестничная площадка,train_dev_pool,0.9999632893942795,2,data/raw/train_images/train_images/15485213501.jpg
+class_balanced,visual,holdout_like_train_examples,17,13396896863.jpg,1100984500528,15,подъезд / лестничная площадка,train_dev_pool,0.9999616773174904,1,data/raw/train_images/train_images/13396896863.jpg
+class_balanced,visual,holdout_like_train_examples,18,14420423323.jpg,1371170500017,16,другое,train_dev_pool,0.9999451321199158,3,data/raw/train_images/train_images/14420423323.jpg
+class_balanced,visual,holdout_like_train_examples,19,15859446163.jpg,1356147502789,16,другое,train_dev_pool,0.9999438414433519,1,data/raw/train_images/train_images/15859446163.jpg
+class_balanced,visual,holdout_like_train_examples,20,14012233926.jpg,1299999750597,6,детская,train_dev_pool,0.9999317994536723,4,data/raw/train_images/train_images/14012233926.jpg
+class_balanced,visual,train_like_holdout_examples,1,14435418736.jpg,1309068000415,2,универсальная комната,shadow_holdout,2.8191401871944603e-08,4,data/raw/val_images/val_images/14435418736.jpg
+class_balanced,visual,train_like_holdout_examples,2,15742676630.jpg,1364838500281,14,дом снаружи / двор,shadow_holdout,1.1361862291424877e-07,1,data/raw/val_images/val_images/15742676630.jpg
+class_balanced,visual,train_like_holdout_examples,3,13582317076.jpg,1259970000823,17,предметы интерьера / быт.техника,shadow_holdout,1.7285254695914034e-07,3,data/raw/val_images/val_images/13582317076.jpg
+class_balanced,visual,train_like_holdout_examples,4,14443324073.jpg,1309186501684,14,дом снаружи / двор,shadow_holdout,3.1853871483314466e-07,4,data/raw/val_images/val_images/14443324073.jpg
+class_balanced,visual,train_like_holdout_examples,5,14422831554.jpg,1308733251365,3,гостиная,shadow_holdout,3.66775491830944e-07,4,data/raw/val_images/val_images/14422831554.jpg
+class_balanced,visual,train_like_holdout_examples,6,14489326013.jpg,1310263251802,17,предметы интерьера / быт.техника,shadow_holdout,1.6542944398720442e-06,2,data/raw/val_images/val_images/14489326013.jpg
+class_balanced,visual,train_like_holdout_examples,7,14480414553.jpg,1310070000157,3,гостиная,shadow_holdout,1.8534060446160911e-06,3,data/raw/val_images/val_images/14480414553.jpg
+class_balanced,visual,train_like_holdout_examples,8,14409972018.jpg,1295636750495,8,туалет,shadow_holdout,2.613926271992016e-06,1,data/raw/val_images/val_images/14409972018.jpg
+class_balanced,visual,train_like_holdout_examples,9,14489708526.jpg,1310264500339,6,детская,shadow_holdout,2.8394189949107226e-06,1,data/raw/val_images/val_images/14489708526.jpg
+class_balanced,visual,train_like_holdout_examples,10,14256079482.jpg,1301253501187,15,подъезд / лестничная площадка,shadow_holdout,5.212059304083389e-06,1,data/raw/val_images/val_images/14256079482.jpg
+class_balanced,visual,train_like_holdout_examples,11,14323904422.jpg,1304859250555,6,детская,shadow_holdout,5.410857382231958e-06,3,data/raw/val_images/val_images/14323904422.jpg
+class_balanced,visual,train_like_holdout_examples,12,15947340803.jpg,1372235750054,0,кухня / столовая,shadow_holdout,5.916395674173004e-06,3,data/raw/val_images/val_images/15947340803.jpg
+class_balanced,visual,train_like_holdout_examples,13,14301868231.jpg,1308807250333,14,дом снаружи / двор,shadow_holdout,6.136771529045817e-06,0,data/raw/val_images/val_images/14301868231.jpg
+class_balanced,visual,train_like_holdout_examples,14,14451818986.jpg,1309431000157,7,ванная комната,shadow_holdout,7.364885156137708e-06,1,data/raw/val_images/val_images/14451818986.jpg
+class_balanced,visual,train_like_holdout_examples,15,14604375246.jpg,1314293751576,6,детская,shadow_holdout,1.1905684049432939e-05,0,data/raw/val_images/val_images/14604375246.jpg
+class_balanced,visual,train_like_holdout_examples,16,15384587484.jpg,1361027251497,11,гардеробная / кладовая / постирочная,shadow_holdout,1.5050411224518989e-05,1,data/raw/val_images/val_images/15384587484.jpg
+class_balanced,visual,train_like_holdout_examples,17,14368950405.jpg,1307108500875,15,подъезд / лестничная площадка,shadow_holdout,1.8037242444442384e-05,3,data/raw/val_images/val_images/14368950405.jpg
+class_balanced,visual,train_like_holdout_examples,18,14492204646.jpg,1310322751078,9,совмещенный санузел,shadow_holdout,2.1240797080296196e-05,4,data/raw/val_images/val_images/14492204646.jpg
+class_balanced,visual,train_like_holdout_examples,19,14424610112.jpg,1306884750006,10,коридор / прихожая,shadow_holdout,2.229458867783322e-05,3,data/raw/val_images/val_images/14424610112.jpg
+class_balanced,visual,train_like_holdout_examples,20,14488250961.jpg,1310244250487,1,кухня-гостиная,shadow_holdout,2.6721563425480764e-05,1,data/raw/val_images/val_images/14488250961.jpg
+class_balanced,visual,confidently_separated_holdout_examples,1,15808499817.jpg,1367201754182,5,кабинет,shadow_holdout,0.9999999407788704,3,data/raw/val_images/val_images/15808499817.jpg
+class_balanced,visual,confidently_separated_holdout_examples,2,14473214210.jpg,1309791500925,13,вид из окна / с балкона,shadow_holdout,0.9999999287814163,2,data/raw/val_images/val_images/14473214210.jpg
+class_balanced,visual,confidently_separated_holdout_examples,3,14474516425.jpg,1309864750642,13,вид из окна / с балкона,shadow_holdout,0.9999999187083952,0,data/raw/val_images/val_images/14474516425.jpg
+class_balanced,visual,confidently_separated_holdout_examples,4,15837793382.jpg,1368282251714,16,другое,shadow_holdout,0.9999998724752348,3,data/raw/val_images/val_images/15837793382.jpg
+class_balanced,visual,confidently_separated_holdout_examples,5,15794366460.jpg,1366713751032,5,кабинет,shadow_holdout,0.9999998537423221,3,data/raw/val_images/val_images/15794366460.jpg
+class_balanced,visual,confidently_separated_holdout_examples,6,15764731305.jpg,1365854000684,11,гардеробная / кладовая / постирочная,shadow_holdout,0.9999998298287792,3,data/raw/val_images/val_images/15764731305.jpg
+class_balanced,visual,confidently_separated_holdout_examples,7,14445402327.jpg,1309303500607,14,дом снаружи / двор,shadow_holdout,0.9999997421259897,4,data/raw/val_images/val_images/14445402327.jpg
+class_balanced,visual,confidently_separated_holdout_examples,8,14439071106.jpg,1304114000751,9,совмещенный санузел,shadow_holdout,0.999999719435089,0,data/raw/val_images/val_images/14439071106.jpg
+class_balanced,visual,confidently_separated_holdout_examples,9,14449760914.jpg,1309354250671,16,другое,shadow_holdout,0.9999995790709153,0,data/raw/val_images/val_images/14449760914.jpg
+class_balanced,visual,confidently_separated_holdout_examples,10,14343797018.jpg,1305957750410,14,дом снаружи / двор,shadow_holdout,0.9999991834219766,0,data/raw/val_images/val_images/14343797018.jpg
+class_balanced,visual,confidently_separated_holdout_examples,11,14463868161.jpg,1309901500882,17,предметы интерьера / быт.техника,shadow_holdout,0.9999990881396094,0,data/raw/val_images/val_images/14463868161.jpg
+class_balanced,visual,confidently_separated_holdout_examples,12,14451877224.jpg,1309432000119,10,коридор / прихожая,shadow_holdout,0.999998621158802,2,data/raw/val_images/val_images/14451877224.jpg
+class_balanced,visual,confidently_separated_holdout_examples,13,14381003479.jpg,1305885000372,8,туалет,shadow_holdout,0.999998554434782,3,data/raw/val_images/val_images/14381003479.jpg
+class_balanced,visual,confidently_separated_holdout_examples,14,15662789316.jpg,1361893250003,17,предметы интерьера / быт.техника,shadow_holdout,0.9999980920427313,2,data/raw/val_images/val_images/15662789316.jpg
+class_balanced,visual,confidently_separated_holdout_examples,15,14364809860.jpg,1306931250395,12,балкон / лоджия,shadow_holdout,0.9999971866892077,4,data/raw/val_images/val_images/14364809860.jpg
+class_balanced,visual,confidently_separated_holdout_examples,16,14429919983.jpg,1306931250395,12,балкон / лоджия,shadow_holdout,0.9999971866892077,4,data/raw/val_images/val_images/14429919983.jpg
+class_balanced,visual,confidently_separated_holdout_examples,17,15835239451.jpg,1368222504736,16,другое,shadow_holdout,0.9999964929398495,3,data/raw/val_images/val_images/15835239451.jpg
+class_balanced,visual,confidently_separated_holdout_examples,18,14344841690.jpg,1307070250620,2,универсальная комната,shadow_holdout,0.9999963373867307,0,data/raw/val_images/val_images/14344841690.jpg
+class_balanced,visual,confidently_separated_holdout_examples,19,15508051613.jpg,1355478000453,11,гардеробная / кладовая / постирочная,shadow_holdout,0.9999942135614487,3,data/raw/val_images/val_images/15508051613.jpg
+class_balanced,visual,confidently_separated_holdout_examples,20,15838959315.jpg,1368283501631,4,спальня,shadow_holdout,0.9999940765477597,3,data/raw/val_images/val_images/15838959315.jpg

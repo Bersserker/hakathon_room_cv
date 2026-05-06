@@ -1,0 +1,289 @@
+{
+  "artifacts": {
+    "fold_metrics_csv": "artifacts/diagnostics/adversarial_validation/fold_metrics.csv",
+    "label_shift_csv": "artifacts/diagnostics/adversarial_validation/label_shift.csv",
+    "metadata_feature_importance_csv": "artifacts/diagnostics/adversarial_validation/metadata_feature_importance.csv",
+    "per_class_summary_csv": "artifacts/diagnostics/adversarial_validation/per_class_summary.csv",
+    "predictions_csv": "artifacts/diagnostics/adversarial_validation/predictions.csv",
+    "report_md": "reports/adversarial_validation.md",
+    "top_examples_csv": "artifacts/diagnostics/adversarial_validation/top_examples.csv"
+  },
+  "balance_audit": {
+    "downsampled_holdout_classes": [],
+    "excluded_classes": [
+      18
+    ],
+    "missing_from_holdout_classes": [
+      18
+    ],
+    "missing_from_train_classes": [],
+    "per_class_counts": {
+      "0": {
+        "holdout_count": 34,
+        "train_count": 34
+      },
+      "1": {
+        "holdout_count": 16,
+        "train_count": 16
+      },
+      "10": {
+        "holdout_count": 29,
+        "train_count": 29
+      },
+      "11": {
+        "holdout_count": 24,
+        "train_count": 24
+      },
+      "12": {
+        "holdout_count": 23,
+        "train_count": 23
+      },
+      "13": {
+        "holdout_count": 21,
+        "train_count": 21
+      },
+      "14": {
+        "holdout_count": 22,
+        "train_count": 22
+      },
+      "15": {
+        "holdout_count": 33,
+        "train_count": 33
+      },
+      "16": {
+        "holdout_count": 28,
+        "train_count": 28
+      },
+      "17": {
+        "holdout_count": 27,
+        "train_count": 27
+      },
+      "19": {
+        "holdout_count": 23,
+        "train_count": 23
+      },
+      "2": {
+        "holdout_count": 23,
+        "train_count": 23
+      },
+      "3": {
+        "holdout_count": 30,
+        "train_count": 30
+      },
+      "4": {
+        "holdout_count": 24,
+        "train_count": 24
+      },
+      "5": {
+        "holdout_count": 22,
+        "train_count": 22
+      },
+      "6": {
+        "holdout_count": 34,
+        "train_count": 34
+      },
+      "7": {
+        "holdout_count": 23,
+        "train_count": 23
+      },
+      "8": {
+        "holdout_count": 33,
+        "train_count": 33
+      },
+      "9": {
+        "holdout_count": 31,
+        "train_count": 31
+      }
+    },
+    "rows_after": 1000,
+    "rows_before": 5062,
+    "shared_classes": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      19
+    ]
+  },
+  "generated_at_utc": "2026-05-06T15:25:24Z",
+  "policy": {
+    "domain_label_0": "train_dev_pool",
+    "domain_label_1": "shadow_holdout",
+    "excluded_features": [
+      "checksum",
+      "class_id",
+      "content_hash",
+      "domain",
+      "domain_label",
+      "hash",
+      "hash_sha256",
+      "image",
+      "image_id_ext",
+      "item_id",
+      "label",
+      "label_name",
+      "local_path",
+      "path",
+      "pred",
+      "predicted",
+      "result",
+      "source_dataset",
+      "target",
+      "url"
+    ],
+    "main_gate": "class_balanced_visual_roc_auc",
+    "warning": "Low AUC does not prove absence of all shift; shadow holdout is diagnostic only."
+  },
+  "results": [
+    {
+      "balanced_accuracy_ci95_half_width": 0.015022968449862721,
+      "balanced_accuracy_mean": 0.5301703512615055,
+      "balanced_accuracy_std": 0.01713896871312637,
+      "brier_score_ci95_half_width": 0.0019492670394966563,
+      "brier_score_mean": 0.2451637139948407,
+      "brier_score_std": 0.002223823268680761,
+      "feature_set": "metadata",
+      "features": 10,
+      "log_loss_ci95_half_width": 0.004049236129468511,
+      "log_loss_mean": 0.6845317371690471,
+      "log_loss_std": 0.00461957512369374,
+      "mean_p_for_holdout_rows_ci95_half_width": 0.0077099268821372545,
+      "mean_p_for_holdout_rows_mean": 0.501349518986436,
+      "mean_p_for_holdout_rows_std": 0.008795877862250976,
+      "mean_p_for_train_rows_ci95_half_width": 0.002676656788441743,
+      "mean_p_for_train_rows_mean": 0.48954132169244496,
+      "mean_p_for_train_rows_std": 0.003053666597648985,
+      "mean_p_holdout_ci95_half_width": 0.003009166205429177,
+      "mean_p_holdout_mean": 0.490707522323082,
+      "mean_p_holdout_std": 0.0034330103014973148,
+      "mode": "raw",
+      "n_folds": 5,
+      "n_holdout_domain_rows": 500,
+      "n_train_domain_rows": 4562,
+      "pr_auc_ci95_half_width": 0.010848612849073132,
+      "pr_auc_mean": 0.12009104302371938,
+      "pr_auc_std": 0.012376650914339383,
+      "roc_auc_ci95_half_width": 0.028280157655737746,
+      "roc_auc_interpretation": "negligible/no clear separability",
+      "roc_auc_mean": 0.5519649675256048,
+      "roc_auc_std": 0.032263446394204434,
+      "rows": 5062
+    },
+    {
+      "balanced_accuracy_ci95_half_width": 0.04231058496404886,
+      "balanced_accuracy_mean": 0.531,
+      "balanced_accuracy_std": 0.04827007354458865,
+      "brier_score_ci95_half_width": 0.003442320398983116,
+      "brier_score_mean": 0.2465958400312461,
+      "brier_score_std": 0.0039271747002349216,
+      "feature_set": "metadata",
+      "features": 10,
+      "log_loss_ci95_half_width": 0.007001608789576951,
+      "log_loss_mean": 0.6862395640782715,
+      "log_loss_std": 0.007987792451711268,
+      "mean_p_for_holdout_rows_ci95_half_width": 0.00433973128190612,
+      "mean_p_for_holdout_rows_mean": 0.5080630573225513,
+      "mean_p_for_holdout_rows_std": 0.004950986811441015,
+      "mean_p_for_train_rows_ci95_half_width": 0.004913177909341244,
+      "mean_p_for_train_rows_mean": 0.492661684346918,
+      "mean_p_for_train_rows_std": 0.005605203974917001,
+      "mean_p_holdout_ci95_half_width": 0.0035701098808267454,
+      "mean_p_holdout_mean": 0.5003623708347347,
+      "mean_p_holdout_std": 0.004072963459526672,
+      "mode": "class_balanced",
+      "n_folds": 5,
+      "n_holdout_domain_rows": 500,
+      "n_train_domain_rows": 500,
+      "pr_auc_ci95_half_width": 0.0238756122997657,
+      "pr_auc_mean": 0.5665442221418783,
+      "pr_auc_std": 0.02723851638097255,
+      "roc_auc_ci95_half_width": 0.03807871434594399,
+      "roc_auc_interpretation": "negligible/no clear separability",
+      "roc_auc_mean": 0.56628,
+      "roc_auc_std": 0.04344213968026898,
+      "rows": 1000
+    },
+    {
+      "balanced_accuracy_ci95_half_width": 0.026738540717930342,
+      "balanced_accuracy_mean": 0.5460149305355393,
+      "balanced_accuracy_std": 0.030504691155325652,
+      "brier_score_ci95_half_width": 0.004998261876427929,
+      "brier_score_mean": 0.21963976372071117,
+      "brier_score_std": 0.005702272104611481,
+      "feature_set": "visual",
+      "features": 768,
+      "log_loss_ci95_half_width": 0.025881065672292782,
+      "log_loss_mean": 0.8241746851917086,
+      "log_loss_std": 0.02952643988437906,
+      "mean_p_for_holdout_rows_ci95_half_width": 0.01814707050082089,
+      "mean_p_for_holdout_rows_mean": 0.3538349099147363,
+      "mean_p_for_holdout_rows_std": 0.020703103689957484,
+      "mean_p_for_train_rows_ci95_half_width": 0.008090920336061909,
+      "mean_p_for_train_rows_mean": 0.27242345592743794,
+      "mean_p_for_train_rows_std": 0.009230534628556058,
+      "mean_p_holdout_ci95_half_width": 0.0076028862686629605,
+      "mean_p_holdout_mean": 0.28046474829927215,
+      "mean_p_holdout_std": 0.008673760470372506,
+      "mode": "raw",
+      "n_folds": 5,
+      "n_holdout_domain_rows": 500,
+      "n_train_domain_rows": 4562,
+      "pr_auc_ci95_half_width": 0.011422154666812146,
+      "pr_auc_mean": 0.13312303816689197,
+      "pr_auc_std": 0.013030976675769601,
+      "roc_auc_ci95_half_width": 0.008855192739426178,
+      "roc_auc_interpretation": "negligible/no clear separability",
+      "roc_auc_mean": 0.5739933369843008,
+      "roc_auc_std": 0.010102455571030367,
+      "rows": 5062
+    },
+    {
+      "balanced_accuracy_ci95_half_width": 0.026369103132264468,
+      "balanced_accuracy_mean": 0.534,
+      "balanced_accuracy_std": 0.030083217912982643,
+      "brier_score_ci95_half_width": 0.022476928771664625,
+      "brier_score_mean": 0.4108546638453596,
+      "brier_score_std": 0.02564282686676681,
+      "feature_set": "visual",
+      "features": 768,
+      "log_loss_ci95_half_width": 0.22851916323448274,
+      "log_loss_mean": 2.283323716217952,
+      "log_loss_std": 0.26070631793554805,
+      "mean_p_for_holdout_rows_ci95_half_width": 0.022113739602612568,
+      "mean_p_for_holdout_rows_mean": 0.519157917878619,
+      "mean_p_for_holdout_rows_std": 0.025228482136821884,
+      "mean_p_for_train_rows_ci95_half_width": 0.046142094774906425,
+      "mean_p_for_train_rows_mean": 0.460845660327441,
+      "mean_p_for_train_rows_std": 0.05264125537802481,
+      "mean_p_holdout_ci95_half_width": 0.028462960262018847,
+      "mean_p_holdout_mean": 0.49000178910303005,
+      "mean_p_holdout_std": 0.03247199693201498,
+      "mode": "class_balanced",
+      "n_folds": 5,
+      "n_holdout_domain_rows": 500,
+      "n_train_domain_rows": 500,
+      "pr_auc_ci95_half_width": 0.048567969038385735,
+      "pr_auc_mean": 0.5692848417729076,
+      "pr_auc_std": 0.05540881647904878,
+      "roc_auc_ci95_half_width": 0.03406237528769834,
+      "roc_auc_interpretation": "negligible/no clear separability",
+      "roc_auc_mean": 0.55228,
+      "roc_auc_std": 0.03886009521347064,
+      "rows": 1000
+    }
+  ]
+}
