@@ -6,9 +6,10 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-import yaml
 
-EXPECTED_COLUMNS = ["image_id_ext", "Predicted"]
+from src.utils.room_data_contract import ClassSchema, SUBMISSION_COLUMNS, normalize_image_id
+
+EXPECTED_COLUMNS = SUBMISSION_COLUMNS
 
 
 def parse_args() -> argparse.Namespace:
@@ -23,15 +24,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def normalize_image_id(value: Any) -> str:
-    if pd.isna(value):
-        return ""
-    text = str(value).strip()
-    if text.endswith(".0"):
-        text = text[:-2]
-    return text
-
-
 def file_sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as file:
@@ -41,20 +33,7 @@ def file_sha256(path: Path) -> str:
 
 
 def load_valid_class_ids(class_mapping_path: Path) -> list[int]:
-    with class_mapping_path.open("r", encoding="utf-8") as file:
-        mapping = yaml.safe_load(file) or {}
-
-    prediction = mapping.get("prediction", {}) if isinstance(mapping, dict) else {}
-    if "valid_class_ids" in prediction:
-        return sorted(int(value) for value in prediction["valid_class_ids"])
-
-    if "id_to_label" in mapping:
-        return sorted(int(value) for value in mapping["id_to_label"].keys())
-
-    if "num_classes" in mapping:
-        return list(range(int(mapping["num_classes"])))
-
-    raise ValueError(f"{class_mapping_path} does not define valid class ids")
+    return ClassSchema.from_yaml(class_mapping_path).valid_class_ids
 
 
 def read_csv_with_id(path: Path) -> pd.DataFrame:

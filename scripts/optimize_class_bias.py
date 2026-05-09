@@ -8,7 +8,16 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import yaml
-from sklearn.metrics import f1_score
+
+try:
+    from src.experiments.results import macro_f1_from_scores, markdown_table, scores_and_targets
+    from src.utils.room_data_contract import ClassSchema
+except ModuleNotFoundError:  # pragma: no cover - keeps direct script execution working
+    import sys
+
+    sys.path.append(str(Path(__file__).resolve().parents[1]))
+    from src.experiments.results import macro_f1_from_scores, markdown_table, scores_and_targets
+    from src.utils.room_data_contract import ClassSchema
 
 
 def parse_args() -> argparse.Namespace:
@@ -35,29 +44,17 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_class_ids(path: Path) -> list[int]:
-    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
-    return [int(value) for value in payload["prediction"]["valid_class_ids"]]
+    return ClassSchema.from_yaml(path).valid_class_ids
 
 
 def load_scores(path: Path, class_ids: list[int]) -> tuple[np.ndarray, np.ndarray]:
-    frame = pd.read_parquet(path)
-    logit_cols = [f"logit_{class_id}" for class_id in class_ids]
-    prob_cols = [f"prob_{class_id}" for class_id in class_ids]
-    if set(logit_cols).issubset(frame.columns):
-        scores = frame[logit_cols].to_numpy(dtype=np.float64)
-    elif set(prob_cols).issubset(frame.columns):
-        probs = frame[prob_cols].to_numpy(dtype=np.float64)
-        scores = np.log(np.clip(probs, 1e-12, 1.0))
-    else:
-        raise ValueError(f"{path} has neither logits nor probabilities for all classes")
-    return scores, frame["target"].to_numpy(dtype=int)
+    return scores_and_targets(pd.read_parquet(path), class_ids)
 
 
 def macro_f1(
     scores: np.ndarray, targets: np.ndarray, bias: np.ndarray, class_ids: list[int]
 ) -> float:
-    preds = (scores + bias.reshape(1, -1)).argmax(axis=1)
-    return float(f1_score(targets, preds, average="macro", labels=class_ids, zero_division=0))
+    return macro_f1_from_scores(scores, targets, bias, class_ids)
 
 
 def objective(
@@ -94,16 +91,6 @@ def optimize_bias(
 def write_yaml(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(payload, sort_keys=False, allow_unicode=True), encoding="utf-8")
-
-
-def markdown_table(headers: list[str], rows: list[list[Any]]) -> str:
-    return "\n".join(
-        [
-            "| " + " | ".join(headers) + " |",
-            "| " + " | ".join(["---"] * len(headers)) + " |",
-            *["| " + " | ".join(str(value) for value in row) + " |" for row in rows],
-        ]
-    )
 
 
 def main() -> None:

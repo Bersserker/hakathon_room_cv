@@ -91,12 +91,20 @@ def resolve_clip_paths(
 
     model_path = Path(model_name_or_path)
     sibling_processor = model_path.parent / "saved_clip_processor"
-    if model_path.exists() and model_path.name == "saved_clip_model" and sibling_processor.exists():
+    if (
+        model_path.exists()
+        and model_path.name == "saved_clip_model"
+        and sibling_processor.exists()
+    ):
         return model_name_or_path, sibling_processor.as_posix()
 
     repo_model = Path("models/saved_clip_model")
     repo_processor = Path("models/saved_clip_processor")
-    if model_name_or_path == "openai/clip-vit-base-patch32" and repo_model.exists() and repo_processor.exists():
+    if (
+        model_name_or_path == "openai/clip-vit-base-patch32"
+        and repo_model.exists()
+        and repo_processor.exists()
+    ):
         return repo_model.as_posix(), repo_processor.as_posix()
 
     return model_name_or_path, model_name_or_path

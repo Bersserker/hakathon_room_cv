@@ -134,14 +134,23 @@ def test_dataset_assembly_from_splits_assigns_domains_and_keeps_manifest_metadat
     assert frames.train["width"].tolist() == [640, 800]
     assert frames.holdout["content_hash"].tolist() == ["hash_shadow_holdout_hold0"]
     assert frames.combined["domain"].tolist() == [TRAIN_DOMAIN, TRAIN_DOMAIN, HOLDOUT_DOMAIN]
-    assert frames.combined["domain_label"].tolist() == [TRAIN_DOMAIN_LABEL, TRAIN_DOMAIN_LABEL, HOLDOUT_DOMAIN_LABEL]
+    assert frames.combined["domain_label"].tolist() == [
+        TRAIN_DOMAIN_LABEL,
+        TRAIN_DOMAIN_LABEL,
+        HOLDOUT_DOMAIN_LABEL,
+    ]
 
 
 def test_dataset_assembly_fails_on_missing_required_columns(tmp_path):
     image_path = tmp_path / "x.jpg"
     image_path.write_bytes(b"x")
     splits = {
-        "folds": [{"fold": 0, "records": [{"image_id_ext": "x.jpg", "local_path": image_path.as_posix()}]}],
+        "folds": [
+            {
+                "fold": 0,
+                "records": [{"image_id_ext": "x.jpg", "local_path": image_path.as_posix()}],
+            }
+        ],
         "shadow_holdout": {"records": []},
     }
     path = tmp_path / "bad_splits.json"

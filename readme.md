@@ -30,6 +30,50 @@ CUDA-стек через Poetry:
 poetry install -E cuda
 ```
 
+## Быстрый запуск проекта
+
+Положите данные в `data/raw/`:
+
+```text
+data/raw/
+├── train_df.csv
+├── val_df.csv
+├── test_df.csv
+├── train_images/train_images/*.jpg
+├── val_images/val_images/*.jpg
+└── test_images/test_images/*.jpg
+```
+
+Локально:
+
+```bash
+uv sync
+make full-pipeline
+```
+
+Команда создаёт `data/preprocess/`, проверяет data leak, обучает 5 folds, запускает inference и пишет `releases/full_pipeline/submission.csv`.
+
+Docker CPU:
+
+```bash
+docker compose build
+docker compose run --rm notebook make full-pipeline
+```
+
+Docker GPU:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml build
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml run --rm notebook make full-pipeline
+```
+
+Только Jupyter:
+
+```bash
+docker compose up
+# http://localhost:8888/tree?token=room-cv
+```
+
 ## Команды разработки
 
 Стандартный DOD-сценарий для чистого окружения:

@@ -2,13 +2,13 @@ data:
   images_train_dir: data/raw/train_images/train_images
   images_val_dir: data/raw/val_images/val_images
   images_test_dir: data/raw/test_images/test_images
-  images_csv_path: data/raw
-  train_df: data/raw/train_df.csv
-  test_df: data/raw/test_df.csv
-  val_df: data/raw/val_df.csv
-  splits_json: data/splits/splits_v1.json
-  dataset_version: ds_main_v1
-  split_version: splits_v1
+  images_csv_path: data/preprocess
+  train_df: data/preprocess/train_df.csv
+  test_df: data/preprocess/test_df.csv
+  val_df: data/preprocess/val_df.csv
+  splits_json: data/preprocess/splits_v1.json
+  dataset_version: ds_preprocess_v1
+  split_version: splits_preprocess_v1
   image_col: image_id_ext
   label_col: result
   num_classes: 20
@@ -24,17 +24,13 @@ model:
     - resnet50
 
 train:
-  epochs: 20
+  epochs: 3
   batch_size: 16
+  num_workers: 4
   lr: 0.0001
   weight_decay: 0.01
-
-early_stopping:
-  enabled: true
-  patience: 4
-  min_delta: 0.001
-  monitor: val_macro_f1
-  mode: max
+  amp: true
+  seed: 42
 
 debug:
   enabled: false
@@ -53,11 +49,11 @@ artifacts:
     logs: artifacts/logs
     reports: reports
     mlflow: artifacts/logs/mlruns
-  oof_dir: artifacts/oof/cv03_focal_loss
-  report_path: reports/cv03_focal_loss.md
+  oof_dir: artifacts/oof/cv03_focal_loss_preprocess
+  report_path: reports/cv03_focal_loss_preprocess.md
 
 experiment:
-  version: cv03_focal_loss
+  version: cv03_focal_loss_preprocess
   loss: focal
   focal_gamma: 2.0
   sampler: balanced

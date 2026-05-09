@@ -190,7 +190,9 @@ def label_shift_table(
         by_class = df.loc[df[label_col].astype(int) == class_id]
         label_name = by_class[label_name_col].dropna().astype(str).iloc[0]
         counts = {
-            domain: int(((df[domain_col] == domain) & (df[label_col].astype(int) == class_id)).sum())
+            domain: int(
+                ((df[domain_col] == domain) & (df[label_col].astype(int) == class_id)).sum()
+            )
             for domain in domains
         }
         totals = {domain: int((df[domain_col] == domain).sum()) for domain in domains}
@@ -243,7 +245,9 @@ def class_balance_sources(
     downsampled_holdout_classes: list[int] = []
 
     for class_id in shared_classes:
-        train_part = df.loc[(df[domain_col] == train_label) & (df[label_col].astype(int) == class_id)]
+        train_part = df.loc[
+            (df[domain_col] == train_label) & (df[label_col].astype(int) == class_id)
+        ]
         holdout_part = df.loc[
             (df[domain_col] == holdout_label) & (df[label_col].astype(int) == class_id)
         ]

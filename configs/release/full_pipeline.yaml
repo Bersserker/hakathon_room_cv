@@ -1,0 +1,39 @@
+release:
+  name: full_pipeline
+  candidate: cv03_focal_loss_preprocess
+  notes: Full preprocess -> leakage-safe splits -> train -> test submission pipeline.
+
+data:
+  test_csv: data/preprocess/test_df.csv
+  images_test_dir: data/raw/test_images/test_images
+  class_mapping: configs/data/class_mapping.yaml
+  num_classes: 20
+  image_size: 224
+  resize_size: 256
+
+model:
+  backbone: convnext_tiny.in12k_ft_in1k
+  checkpoints:
+    - path: artifacts/checkpoints/roomclf_convnexttiny_fold0_224_cv03_focal_loss_preprocess.ckpt
+      fold: 0
+    - path: artifacts/checkpoints/roomclf_convnexttiny_fold1_224_cv03_focal_loss_preprocess.ckpt
+      fold: 1
+    - path: artifacts/checkpoints/roomclf_convnexttiny_fold2_224_cv03_focal_loss_preprocess.ckpt
+      fold: 2
+    - path: artifacts/checkpoints/roomclf_convnexttiny_fold3_224_cv03_focal_loss_preprocess.ckpt
+      fold: 3
+    - path: artifacts/checkpoints/roomclf_convnexttiny_fold4_224_cv03_focal_loss_preprocess.ckpt
+      fold: 4
+
+postprocess:
+  class_bias: null
+
+inference:
+  seed: 42
+  device: cuda
+  batch_size: 64
+  num_workers: 0
+  tta: false
+  validate_after: true
+  output_submission: releases/full_pipeline/submission.csv
+  output_predictions: releases/full_pipeline/predictions.parquet

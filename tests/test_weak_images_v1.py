@@ -35,7 +35,9 @@ def file_hash(path: Path) -> str:
 
 
 def empty_manifest() -> pd.DataFrame:
-    return pd.DataFrame({"image_id_ext": pd.Series(dtype=str), "hash_sha256": pd.Series(dtype=str)})
+    return pd.DataFrame(
+        {"image_id_ext": pd.Series(dtype=str), "hash_sha256": pd.Series(dtype=str)}
+    )
 
 
 def empty_splits() -> dict:
@@ -173,7 +175,10 @@ def test_leakage_internal_duplicates_quota_scoring_and_copy(tmp_path):
             "hash_sha256": [file_hash(official)],
         }
     )
-    splits = {"folds": [{"records": [{"image_id_ext": "leak_id.jpg"}]}], "shadow_holdout": {"records": []}}
+    splits = {
+        "folds": [{"records": [{"image_id_ext": "leak_id.jpg"}]}],
+        "shadow_holdout": {"records": []},
+    }
 
     result = build_weak_images(
         heuristic_sources=sources,

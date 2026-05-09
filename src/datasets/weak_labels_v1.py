@@ -7,6 +7,13 @@ from typing import Any
 
 import pandas as pd
 
+from src.datasets.weak_room_candidates import (
+    SOURCE_POLICY,
+    normalize_image_id_ext,
+    source_name_from_path as candidate_source_name_from_path,
+)
+from src.utils.room_data_contract import require_columns
+
 
 VERSION = "weak_labels_v1"
 DEFAULT_WEAK_WEIGHT = 0.5
@@ -19,12 +26,6 @@ DEFAULT_TRAIN_CSV = Path("data/raw/train_df.csv")
 DEFAULT_MANIFEST = Path("data/processed/data_manifest.parquet")
 DEFAULT_OUTPUT_PARQUET = Path("data/processed/weak_labels_v1.parquet")
 DEFAULT_REPORT_MD = Path("reports/weak_labels_audit.md")
-
-SOURCE_POLICY: dict[str, dict[str, Any]] = {
-    "heuristics_cabinet": {"class_id": 5, "source": "heuristics_cabinet"},
-    "heuristics_detskaya": {"class_id": 6, "source": "heuristics_detskaya"},
-    "heuristics_dressing_room": {"class_id": 11, "source": "heuristics_dressing_room"},
-}
 
 REQUIRED_HEURISTIC_COLUMNS = {"image_id_ext"}
 REQUIRED_TRAIN_COLUMNS = {"image_id_ext"}
@@ -46,27 +47,8 @@ class WeakLabelsResult:
     audit: dict[str, Any]
 
 
-def normalize_image_id_ext(value: Any) -> str:
-    if pd.isna(value):
-        return ""
-    text = str(value).strip()
-    if text.endswith(".0"):
-        text = text[:-2]
-    return text if Path(text).suffix else f"{text}.jpg"
-
-
-def require_columns(df: pd.DataFrame, required: set[str], name: str | Path) -> None:
-    missing = sorted(required.difference(df.columns))
-    if missing:
-        raise ValueError(f"{name} missing required columns: {missing}")
-
-
 def source_name_from_path(path: Path) -> str:
-    source = path.stem
-    if source not in SOURCE_POLICY:
-        known = ", ".join(sorted(SOURCE_POLICY))
-        raise ValueError(f"Unknown weak-label heuristic source {source!r}. Known: {known}")
-    return source
+    return candidate_source_name_from_path(path, kind="weak-label")
 
 
 def load_heuristic_sources(paths: list[Path]) -> dict[str, pd.DataFrame]:
@@ -136,7 +118,9 @@ def enrich_with_hashes(weak_rows: pd.DataFrame, manifest: pd.DataFrame) -> pd.Da
     return weak_rows.merge(manifest_keys, on="image_id_ext", how="left")
 
 
-def add_train_overlap_flags(weak_rows: pd.DataFrame, train: pd.DataFrame, manifest: pd.DataFrame) -> pd.DataFrame:
+def add_train_overlap_flags(
+    weak_rows: pd.DataFrame, train: pd.DataFrame, manifest: pd.DataFrame
+) -> pd.DataFrame:
     require_columns(train, REQUIRED_TRAIN_COLUMNS, "train")
     train_ids = train["image_id_ext"].map(normalize_image_id_ext)
     train_id_set = set(train_ids.dropna())
@@ -166,9 +150,7 @@ def duplicate_counts(df: pd.DataFrame) -> dict[str, int]:
     hashable = after_image_id.loc[after_image_id["hash_sha256"].notna()].copy()
     return {
         "image_id_ext_rows": image_id_duplicate_rows,
-        "hash_sha256_rows": int(
-            hashable.duplicated(subset=["hash_sha256"], keep="first").sum()
-        ),
+        "hash_sha256_rows": int(hashable.duplicated(subset=["hash_sha256"], keep="first").sum()),
     }
 
 
@@ -186,8 +168,8 @@ def remove_train_overlaps_and_duplicates(df: pd.DataFrame) -> pd.DataFrame:
     kept = kept.sort_values(["class_id", "source", "image_id_ext"], kind="stable")[
         OUTPUT_COLUMNS
     ].reset_index(drop=True)
-    kept["hash_sha256"] = kept["hash_sha256"].astype(object).where(
-        kept["hash_sha256"].notna(), None
+    kept["hash_sha256"] = (
+        kept["hash_sha256"].astype(object).where(kept["hash_sha256"].notna(), None)
     )
     return kept
 
@@ -280,8 +262,7 @@ def build_audit_report(audit: dict[str, Any]) -> str:
     source_rows = [[k, v] for k, v in sorted(audit["input_rows_by_source"].items())]
     class_rows = [[k, v] for k, v in sorted(audit["final"]["by_class"].items())]
     final_rows = [
-        [row["source"], row["class_id"], row["rows"]]
-        for row in audit["final"]["by_source_class"]
+        [row["source"], row["class_id"], row["rows"]] for row in audit["final"]["by_source_class"]
     ]
     mapping_rows = [[k, v] for k, v in sorted(audit["mapped_class_ids_by_source"].items())]
 
@@ -333,7 +314,9 @@ def build_audit_report(audit: dict[str, Any]) -> str:
     )
 
 
-def write_artifacts(df: pd.DataFrame, report_text: str, parquet_path: Path, report_path: Path) -> None:
+def write_artifacts(
+    df: pd.DataFrame, report_text: str, parquet_path: Path, report_path: Path
+) -> None:
     parquet_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(parquet_path, index=False, engine="pyarrow")

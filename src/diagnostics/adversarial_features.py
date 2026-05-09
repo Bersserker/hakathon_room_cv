@@ -75,7 +75,9 @@ def embedding_columns(embeddings: pd.DataFrame) -> list[str]:
     return sorted(columns)
 
 
-def build_visual_matrix(df: pd.DataFrame, embeddings: pd.DataFrame) -> tuple[np.ndarray, list[str]]:
+def build_visual_matrix(
+    df: pd.DataFrame, embeddings: pd.DataFrame
+) -> tuple[np.ndarray, list[str]]:
     if "image_id_ext" not in df.columns:
         raise ValueError("visual dataframe missing required column: image_id_ext")
     if "image_id_ext" not in embeddings.columns:

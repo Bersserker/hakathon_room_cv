@@ -14,6 +14,8 @@ from src.training.train_image import (
     build_train_frame_with_optional_weak,
     compute_class_weights,
     compute_effective_class_counts,
+    create_model,
+    get_device,
     metric_improved,
     weighted_batch_loss,
 )
@@ -49,6 +51,42 @@ def test_metric_improved_respects_mode_and_min_delta():
     assert not metric_improved(0.6205, 0.62, "max", 0.001)
     assert metric_improved(0.9, 1.0, "min", 0.05)
     assert not metric_improved(0.98, 1.0, "min", 0.05)
+
+
+def test_get_device_auto_falls_back_to_cpu_without_accelerators(monkeypatch):
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    monkeypatch.setattr(torch.backends.mps, "is_available", lambda: False)
+
+    device = get_device({"train": {"device": "auto"}})
+
+    assert device.type == "cpu"
+
+
+def test_create_model_enables_grad_checkpointing(monkeypatch):
+    calls = []
+
+    class DummyModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.grad_checkpointing_enabled = False
+
+        def set_grad_checkpointing(self, enabled=True):
+            self.grad_checkpointing_enabled = enabled
+
+    def fake_create_model(backbone, pretrained, num_classes):
+        calls.append((backbone, pretrained, num_classes))
+        return DummyModel()
+
+    monkeypatch.setattr("src.training.train_image.timm.create_model", fake_create_model)
+    cfg = {
+        "model": {"backbone": "dummy_backbone", "pretrained": False, "grad_checkpointing": True},
+        "data": {"num_classes": 20},
+    }
+
+    model = create_model(cfg, torch.device("cpu"))
+
+    assert calls == [("dummy_backbone", False, 20)]
+    assert model.grad_checkpointing_enabled is True
 
 
 def test_weighted_batch_loss_normalizes_by_sum_of_weights():

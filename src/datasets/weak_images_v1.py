@@ -2,15 +2,20 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import json
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
-import yaml
 from PIL import Image
+
+from src.datasets.weak_room_candidates import (
+    SOURCE_POLICY,
+    normalize_image_id_ext,
+    source_name_from_path as candidate_source_name_from_path,
+)
+from src.utils.room_data_contract import ClassSchema, load_splits as contract_load_splits, require_columns
 
 VERSION = "weak_images_v1"
 DEFAULT_WEAK_WEIGHT = 0.35
@@ -29,15 +34,6 @@ DEFAULT_REPORT_MD = Path("reports/weak_images_download_report.md")
 DEFAULT_MAX_ADDED_PER_CLASS = {5: 180, 6: 80, 11: 200}
 DEFAULT_MIN_WIDTH = 64
 DEFAULT_MIN_HEIGHT = 64
-
-SOURCE_POLICY: dict[str, dict[str, Any]] = {
-    "heuristics_cabinet": {"class_id": 5, "source": "heuristics_cabinet"},
-    "heuristics_detskaya": {"class_id": 6, "source": "heuristics_detskaya"},
-    "heuristics_dressing_room": {
-        "class_id": 11,
-        "source": "heuristics_dressing_room",
-    },
-}
 
 REQUIRED_HEURISTIC_COLUMNS = {"image_id_ext"}
 REQUIRED_MANIFEST_COLUMNS = {"image_id_ext", "hash_sha256"}
@@ -71,27 +67,8 @@ class WeakImagesResult:
     audit: dict[str, Any]
 
 
-def normalize_image_id_ext(value: Any) -> str:
-    if pd.isna(value):
-        return ""
-    text = str(value).strip()
-    if text.endswith(".0"):
-        text = text[:-2]
-    return text if Path(text).suffix else f"{text}.jpg"
-
-
-def require_columns(df: pd.DataFrame, required: set[str], name: str | Path) -> None:
-    missing = sorted(required.difference(df.columns))
-    if missing:
-        raise ValueError(f"{name} missing required columns: {missing}")
-
-
 def source_name_from_path(path: Path) -> str:
-    source = path.stem
-    if source not in SOURCE_POLICY:
-        known = ", ".join(sorted(SOURCE_POLICY))
-        raise ValueError(f"Unknown weak-image heuristic source {source!r}. Known: {known}")
-    return source
+    return candidate_source_name_from_path(path, kind="weak-image")
 
 
 def load_heuristic_sources(paths: list[Path]) -> dict[str, pd.DataFrame]:
@@ -115,15 +92,11 @@ def load_manifest(path: Path) -> pd.DataFrame:
 
 
 def load_splits(path: Path) -> dict[str, Any]:
-    with path.open("r", encoding="utf-8") as f:
-        return json.load(f)
+    return contract_load_splits(path)
 
 
 def load_class_mapping(path: Path) -> dict[int, str]:
-    with path.open("r", encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    mapping = data.get("id_to_label", {}) if isinstance(data, dict) else {}
-    return {int(class_id): str(label) for class_id, label in mapping.items()}
+    return ClassSchema.from_yaml(path).id_to_label
 
 
 def to_bool(value: Any) -> bool:
@@ -425,12 +398,14 @@ def finalize_manifest(selected: pd.DataFrame) -> pd.DataFrame:
     manifest["height"] = pd.to_numeric(manifest["height"], errors="coerce").astype(int)
     manifest["candidate_score"] = pd.to_numeric(manifest["candidate_score"], errors="coerce")
     manifest["leakage_checked"] = True
-    manifest["selected_rank"] = pd.to_numeric(
-        manifest["selected_rank"], errors="coerce"
-    ).astype(int)
-    return manifest[MANIFEST_COLUMNS].sort_values(
-        ["class_id", "selected_rank"], kind="stable"
-    ).reset_index(drop=True)
+    manifest["selected_rank"] = pd.to_numeric(manifest["selected_rank"], errors="coerce").astype(
+        int
+    )
+    return (
+        manifest[MANIFEST_COLUMNS]
+        .sort_values(["class_id", "selected_rank"], kind="stable")
+        .reset_index(drop=True)
+    )
 
 
 def summarize_selected(df: pd.DataFrame) -> dict[str, int]:
@@ -474,7 +449,9 @@ def build_weak_images(
     )
     deduped, duplicate_counts = drop_internal_duplicates(gated)
     selected = select_by_quota(deduped, max_added_per_class=max_added_per_class)
-    copied = copy_selected_images(selected, output_image_dir=output_image_dir, clean_output=clean_output)
+    copied = copy_selected_images(
+        selected, output_image_dir=output_image_dir, clean_output=clean_output
+    )
     final = finalize_manifest(copied)
 
     quota_dropped = int(len(deduped) - len(selected))
