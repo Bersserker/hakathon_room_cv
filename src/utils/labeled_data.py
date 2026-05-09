@@ -4,18 +4,10 @@ from pathlib import Path
 
 import pandas as pd
 
+from src.utils.room_data_contract import require_columns, validate_ratio_column
+
 
 DEFAULT_SORT_COLUMNS = ("item_id", "image_id_ext", "image")
-
-
-def require_columns(df: pd.DataFrame, required: set[str], source_path: Path) -> None:
-    """Проверяет наличие обязательных колонок в таблице.
-
-    Пояснение: останавливает запуск, если схема входных данных не совпадает с ожиданием.
-    """
-    missing = sorted(required.difference(df.columns))
-    if missing:
-        raise ValueError(f"{source_path} missing required columns: {missing}")
 
 
 def load_labeled_csv(
@@ -38,9 +30,7 @@ def load_labeled_csv(
         df["split_role"] = split_role
 
     if ratio_column is not None:
-        df[ratio_column] = pd.to_numeric(df[ratio_column], errors="raise")
-        if ((df[ratio_column] <= 0.0) | (df[ratio_column] > 1.0)).any():
-            raise ValueError(f"{path} has {ratio_column} values outside (0, 1].")
+        df[ratio_column] = validate_ratio_column(df, ratio_column, path)
 
     sort_columns = [column for column in DEFAULT_SORT_COLUMNS if column in df.columns]
     if sort_columns:

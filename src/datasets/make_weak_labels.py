@@ -13,7 +13,7 @@ PROJECT_ROOT = Path.cwd()
 # Если запускаешь из src/, тогда раскомментируй:
 # PROJECT_ROOT = Path.cwd().parent
 
-DATA_RAW = PROJECT_ROOT / "data" / "raw" 
+DATA_RAW = PROJECT_ROOT / "data" / "raw"
 DATA_PROCESSED = PROJECT_ROOT / "data" / "processed"
 REPORTS_DIR = PROJECT_ROOT / "reports"
 
@@ -49,6 +49,7 @@ WEAK_WEIGHT = 0.3
 # Helpers
 # =========================
 
+
 def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
 
@@ -75,10 +76,7 @@ def find_image_id_column(df: pd.DataFrame) -> str:
         if col in df.columns:
             return col
 
-    raise ValueError(
-        f"Не нашёл колонку с именем изображения. "
-        f"Есть колонки: {list(df.columns)}"
-    )
+    raise ValueError(f"Не нашёл колонку с именем изображения. Есть колонки: {list(df.columns)}")
 
 
 def add_image_id_ext(df: pd.DataFrame) -> pd.DataFrame:
@@ -103,9 +101,7 @@ def add_hash(df: pd.DataFrame, images_dir: Path) -> pd.DataFrame:
 
     existing_mask = df["file_exists"]
 
-    df.loc[existing_mask, "hash"] = df.loc[existing_mask, "path"].apply(
-        sha256_file
-    )
+    df.loc[existing_mask, "hash"] = df.loc[existing_mask, "path"].apply(sha256_file)
 
     # важно для parquet
     df["path"] = df["path"].astype(str)
@@ -116,6 +112,7 @@ def add_hash(df: pd.DataFrame, images_dir: Path) -> pd.DataFrame:
 # =========================
 # Main pipeline
 # =========================
+
 
 def build_weak_labels():
     DATA_PROCESSED.mkdir(parents=True, exist_ok=True)
@@ -153,9 +150,7 @@ def build_weak_labels():
     missing_files_count = (~weak_df["file_exists"]).sum()
 
     # ---------- Check intersections with train ----------
-    weak_df["is_in_train_by_image_id_ext"] = weak_df["image_id_ext"].isin(
-        train_df["image_id_ext"]
-    )
+    weak_df["is_in_train_by_image_id_ext"] = weak_df["image_id_ext"].isin(train_df["image_id_ext"])
 
     if train_has_hash:
         weak_df["is_in_train_by_hash"] = weak_df["hash"].isin(train_df["hash"])
@@ -163,8 +158,7 @@ def build_weak_labels():
         weak_df["is_in_train_by_hash"] = False
 
     weak_df["is_in_train"] = (
-        weak_df["is_in_train_by_image_id_ext"]
-        | weak_df["is_in_train_by_hash"]
+        weak_df["is_in_train_by_image_id_ext"] | weak_df["is_in_train_by_hash"]
     )
 
     duplicates_with_train = weak_df["is_in_train"].sum()
@@ -175,10 +169,7 @@ def build_weak_labels():
     # ---------- Remove duplicates inside weak itself ----------
     duplicates_inside_weak_by_id = weak_df_clean.duplicated("image_id_ext").sum()
 
-    weak_df_clean = weak_df_clean.drop_duplicates(
-        subset=["image_id_ext"],
-        keep="first"
-    )
+    weak_df_clean = weak_df_clean.drop_duplicates(subset=["image_id_ext"], keep="first")
 
     if "hash" in weak_df_clean.columns:
         hash_mask = weak_df_clean["hash"].notna()

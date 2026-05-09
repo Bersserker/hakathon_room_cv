@@ -3,10 +3,17 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Any
-
 import pandas as pd
-import yaml
+
+try:
+    from src.experiments.results import markdown_table
+    from src.utils.room_data_contract import ClassSchema
+except ModuleNotFoundError:  # pragma: no cover - keeps direct script execution working
+    import sys
+
+    sys.path.append(str(Path(__file__).resolve().parents[1]))
+    from src.experiments.results import markdown_table
+    from src.utils.room_data_contract import ClassSchema
 
 DEFAULT_REASONS = {
     (3, 2): "visual similarity: living/common room",
@@ -38,18 +45,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_labels(path: Path) -> dict[int, str]:
-    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
-    return {int(key): str(value) for key, value in payload["id_to_label"].items()}
-
-
-def markdown_table(headers: list[str], rows: list[list[Any]]) -> str:
-    return "\n".join(
-        [
-            "| " + " | ".join(headers) + " |",
-            "| " + " | ".join(["---"] * len(headers)) + " |",
-            *["| " + " | ".join(str(value) for value in row) + " |" for row in rows],
-        ]
-    )
+    return ClassSchema.from_yaml(path).id_to_label
 
 
 def main() -> None:

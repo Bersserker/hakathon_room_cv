@@ -20,7 +20,9 @@ def markdown_table(df: pd.DataFrame, columns: list[str], *, max_rows: int = 20) 
     sample = df[existing].head(max_rows).copy()
     for column in sample.columns:
         if pd.api.types.is_float_dtype(sample[column]):
-            sample[column] = sample[column].map(lambda value: "" if pd.isna(value) else f"{value:.4f}")
+            sample[column] = sample[column].map(
+                lambda value: "" if pd.isna(value) else f"{value:.4f}"
+            )
         else:
             sample[column] = sample[column].fillna("").astype(str)
     header = "| " + " | ".join(existing) + " |"
@@ -92,21 +94,33 @@ def build_adversarial_markdown_report(
             "abs_pct_diff", ascending=False, kind="stable"
         )
 
-    metadata_importance = pd.concat(
-        [result.feature_importance for result in results if result.feature_set == "metadata"],
-        ignore_index=True,
-        sort=False,
-    ) if results else pd.DataFrame()
-    top_examples = pd.concat(
-        [result.top_examples for result in results],
-        ignore_index=True,
-        sort=False,
-    ) if results else pd.DataFrame()
-    per_class = pd.concat(
-        [result.per_class_summary for result in results],
-        ignore_index=True,
-        sort=False,
-    ) if results else pd.DataFrame()
+    metadata_importance = (
+        pd.concat(
+            [result.feature_importance for result in results if result.feature_set == "metadata"],
+            ignore_index=True,
+            sort=False,
+        )
+        if results
+        else pd.DataFrame()
+    )
+    top_examples = (
+        pd.concat(
+            [result.top_examples for result in results],
+            ignore_index=True,
+            sort=False,
+        )
+        if results
+        else pd.DataFrame()
+    )
+    per_class = (
+        pd.concat(
+            [result.per_class_summary for result in results],
+            ignore_index=True,
+            sort=False,
+        )
+        if results
+        else pd.DataFrame()
+    )
 
     missing_holdout = balance_audit.get("missing_from_holdout_classes", [])
     class_18_note = (

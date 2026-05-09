@@ -1,6 +1,5 @@
 import argparse
 import copy
-import json
 import random
 import re
 import sqlite3
@@ -18,14 +17,21 @@ import torch
 import torch.nn as nn
 import yaml
 from PIL import Image
-from sklearn.metrics import accuracy_score, confusion_matrix, f1_score
+from sklearn.metrics import accuracy_score, f1_score
 from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
 from torchvision import transforms
 from tqdm import tqdm
 
 try:
+    from src.experiments import results as experiment_results
     from src.training.config_loader import load_config
+    from src.utils import room_data_contract as room_contract
 except ModuleNotFoundError:  # pragma: no cover - keeps direct script execution working
+    import sys
+
+    sys.path.append(str(Path(__file__).resolve().parents[2]))
+    from src.experiments import results as experiment_results
+    from src.utils import room_data_contract as room_contract
     from config_loader import load_config
 
 
@@ -35,7 +41,7 @@ def parse_args():
     parser.add_argument("--fold", type=int, default=0)
     parser.add_argument("--all-folds", action="store_true")
     parser.add_argument("--debug", action="store_true")
-    parser.add_argument("--device", choices=["cpu", "cuda", "mps"], default=None)
+    parser.add_argument("--device", choices=["auto", "cpu", "cuda", "mps"], default=None)
     return parser.parse_args()
 
 
@@ -47,12 +53,7 @@ def set_seed(seed):
 
 
 def normalize_image_id_ext(value: Any) -> str:
-    if pd.isna(value):
-        return ""
-    text = str(value)
-    if text.endswith(".0"):
-        text = text[:-2]
-    return text if Path(text).suffix else f"{text}.jpg"
+    return room_contract.image_id_with_extension(value)
 
 
 def slug(value: str) -> str:
@@ -288,8 +289,14 @@ class RoomDataset(Dataset):
 
 
 def get_device(cfg):
-    requested = cfg["train"].get("device", "cuda")
+    requested = cfg["train"].get("device", "auto")
     allow_fallback = bool(cfg["train"].get("allow_device_fallback", True))
+    if requested == "auto":
+        if torch.cuda.is_available():
+            return torch.device("cuda")
+        if torch.backends.mps.is_available():
+            return torch.device("mps")
+        return torch.device("cpu")
     if requested == "cuda" and torch.cuda.is_available():
         return torch.device("cuda")
     if requested == "mps" and torch.backends.mps.is_available():
@@ -501,27 +508,15 @@ def get_label_smoothing(cfg) -> float:
 
 
 def load_splits(path: str | Path) -> dict[str, Any]:
-    with Path(path).open("r", encoding="utf-8") as f:
-        data = json.load(f)
-    if data.get("version") != "splits_v1":
-        raise ValueError(f"Unsupported split version: {data.get('version')!r}")
-    return data
+    return room_contract.load_splits(path)
 
 
 def records_to_df(records: list[dict[str, Any]]) -> pd.DataFrame:
-    df = pd.DataFrame(records).copy()
-    df["image_id_ext"] = df["image_id_ext"].map(normalize_image_id_ext)
-    return df.reset_index(drop=True)
+    return room_contract.records_to_frame(records)
 
 
 def build_fold_frames(splits: dict[str, Any], fold: int) -> tuple[pd.DataFrame, pd.DataFrame]:
-    folds = splits["folds"]
-    valid_records = folds[fold]["records"]
-    train_records: list[dict[str, Any]] = []
-    for fold_payload in folds:
-        if int(fold_payload["fold"]) != fold:
-            train_records.extend(fold_payload["records"])
-    return records_to_df(train_records), records_to_df(valid_records)
+    return room_contract.build_fold_frames(splits, fold)
 
 
 def load_weak_manifest_for_training(path: str | Path, cfg: dict[str, Any]) -> pd.DataFrame:
@@ -598,20 +593,28 @@ def create_model(cfg, device, debug=False):
         assert backbone in cfg["model"]["whitelist"], f"Backbone {backbone} is not in whitelist"
 
     try:
-        return timm.create_model(
+        model = timm.create_model(
             backbone,
             pretrained=cfg["model"]["pretrained"],
             num_classes=cfg["data"]["num_classes"],
-        ).to(device)
+        )
     except Exception:
         if cfg["model"]["pretrained"] and debug:
             print("Pretrained weights unavailable in debug; retry pretrained=False")
-            return timm.create_model(
+            model = timm.create_model(
                 backbone,
                 pretrained=False,
                 num_classes=cfg["data"]["num_classes"],
-            ).to(device)
-        raise
+            )
+        else:
+            raise
+
+    if cfg["model"].get("grad_checkpointing", False):
+        if not hasattr(model, "set_grad_checkpointing"):
+            raise ValueError(f"Backbone {backbone} does not support grad_checkpointing")
+        model.set_grad_checkpointing(True)
+
+    return model.to(device)
 
 
 def load_model_from_checkpoint(checkpoint_path, device):
@@ -803,35 +806,15 @@ def prediction_frame(df: pd.DataFrame, result: dict[str, Any], num_classes: int)
 
 
 def class_names_from_splits(splits: dict[str, Any], num_classes: int) -> list[str]:
-    names = [str(index) for index in range(num_classes)]
-    for fold_payload in splits["folds"]:
-        for row in fold_payload["records"]:
-            names[int(row["result"])] = str(row["label"])
-    for row in splits.get("shadow_holdout", {}).get("records", []):
-        names[int(row["result"])] = str(row["label"])
-    return names
+    return room_contract.class_names_from_splits(splits, num_classes)
 
 
 def metrics_from_frame(df: pd.DataFrame, num_classes: int) -> dict[str, Any]:
-    labels = df["target"].to_numpy()
-    preds = df["pred"].to_numpy()
-    class_ids = list(range(num_classes))
-    return {
-        "rows": int(len(df)),
-        "macro_f1": float(
-            f1_score(labels, preds, average="macro", labels=class_ids, zero_division=0)
-        ),
-        "accuracy": float(accuracy_score(labels, preds)),
-        "per_class_f1": f1_score(labels, preds, average=None, labels=class_ids, zero_division=0),
-        "confusion_matrix": confusion_matrix(labels, preds, labels=class_ids),
-    }
+    return experiment_results.metrics_from_frame(df, list(range(num_classes)))
 
 
 def markdown_table(headers: list[str], rows: list[list[Any]]) -> str:
-    header = "| " + " | ".join(headers) + " |"
-    separator = "| " + " | ".join(["---"] * len(headers)) + " |"
-    body = ["| " + " | ".join(str(value) for value in row) + " |" for row in rows]
-    return "\n".join([header, separator, *body])
+    return experiment_results.markdown_table(headers, rows)
 
 
 def write_metrics_report(
@@ -854,16 +837,7 @@ def write_metrics_report(
     shadow_present_macro_f1 = None
     shadow_support = None
     if shadow_df is not None:
-        present_labels = sorted(int(value) for value in shadow_df["target"].dropna().unique())
-        shadow_present_macro_f1 = float(
-            f1_score(
-                shadow_df["target"].to_numpy(),
-                shadow_df["pred"].to_numpy(),
-                average="macro",
-                labels=present_labels,
-                zero_division=0,
-            )
-        )
+        shadow_present_macro_f1 = experiment_results.present_label_macro_f1(shadow_df)
         shadow_support = (
             shadow_df["target"].value_counts().reindex(range(num_classes), fill_value=0)
         )
@@ -1048,8 +1022,10 @@ def log_mlflow_params(cfg, fold, device, debug):
             "debug": debug,
             "backbone": cfg["model"]["backbone"],
             "pretrained": cfg["model"]["pretrained"],
+            "grad_checkpointing": bool(cfg["model"].get("grad_checkpointing", False)),
             "num_classes": cfg["data"]["num_classes"],
             "image_size": cfg["data"]["image_size"],
+            "resize_size": cfg["data"].get("resize_size"),
             "batch_size": cfg["train"]["batch_size"],
             "epochs": cfg["train"]["epochs"],
             "lr": cfg["train"]["lr"],
@@ -1480,8 +1456,7 @@ def write_final_config(cfg, output_dir: Path) -> Path:
     return path
 
 
-def main():
-    args = parse_args()
+def run_image_training(args: argparse.Namespace) -> dict[str, Any]:
     cfg = load_config(args.config)
     if args.device is not None:
         cfg["train"]["device"] = args.device
@@ -1523,10 +1498,21 @@ def main():
         run_ids=run_ids,
         debug=args.debug,
     )
-    print(f"OOF -> {oof_path}")
-    print(f"Shadow -> {shadow_path}")
-    print(f"Config -> {config_path}")
-    print(f"Report -> {cfg['artifacts']['report_path']}")
+    return {
+        "oof": oof_path,
+        "shadow": shadow_path,
+        "config": config_path,
+        "report": Path(cfg["artifacts"]["report_path"]),
+        "run_ids": run_ids,
+    }
+
+
+def main():
+    result = run_image_training(parse_args())
+    print(f"OOF -> {result['oof']}")
+    print(f"Shadow -> {result['shadow']}")
+    print(f"Config -> {result['config']}")
+    print(f"Report -> {result['report']}")
 
 
 if __name__ == "__main__":

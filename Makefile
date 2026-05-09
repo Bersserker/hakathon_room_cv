@@ -1,9 +1,13 @@
-.PHONY: setup lint test smoke-train train infer validate-submission weak-labels-v1 weak-images-v1 adversarial-validation format pre-commit-install mlflow-ui
+.PHONY: setup lint test preprocess splits splits-preprocess smoke-train train infer validate-submission full-pipeline weak-labels-v1 weak-images-v1 adversarial-validation format pre-commit-install mlflow-ui
 
 UV ?= uv
 CONFIG ?= configs/model/image_baseline_v1.yaml
 RELEASE_CONFIG ?= configs/release/rc1.yaml
 SUBMISSION ?= releases/rc1/submission.csv
+PREPROCESS_DIR ?= data/preprocess
+FULL_CONFIG ?= configs/model/cv03_focal_loss_preprocess.yaml
+FULL_RELEASE_CONFIG ?= configs/release/full_pipeline.yaml
+FULL_SUBMISSION ?= releases/full_pipeline/submission.csv
 FOLD ?= 0
 
 setup:
@@ -15,8 +19,14 @@ lint:
 test:
 	$(UV) run pytest
 
+preprocess:
+	$(UV) run python scripts/data01_preprocess.py --raw-dir data/raw --out-dir $(PREPROCESS_DIR) --report-md reports/preprocess_leakage_report.md
+
 splits:
 	$(UV) run python scripts/data02_build_splits.py
+
+splits-preprocess:
+	$(UV) run python scripts/data02_build_splits.py --train-csv $(PREPROCESS_DIR)/train_df.csv --val-csv $(PREPROCESS_DIR)/val_df.csv --manifest $(PREPROCESS_DIR)/data_manifest.parquet --output-json $(PREPROCESS_DIR)/splits_v1.json --report-md reports/leakage_report_preprocess.md
 
 manifest:
 	$(UV) run python src/datasets/make_manifest.py
@@ -33,6 +43,11 @@ infer:
 
 validate-submission:
 	$(UV) run python -m src.inference.validate_submission --submission $(SUBMISSION) --test-csv data/raw/test_df.csv --class-mapping configs/data/class_mapping.yaml
+
+full-pipeline: preprocess splits-preprocess
+	$(UV) run python src/training/train_image.py --config $(FULL_CONFIG) --all-folds
+	$(UV) run python -m src.inference.predict --config $(FULL_RELEASE_CONFIG)
+	$(UV) run python -m src.inference.validate_submission --submission $(FULL_SUBMISSION) --test-csv $(PREPROCESS_DIR)/test_df.csv --class-mapping configs/data/class_mapping.yaml
 
 weak-labels-v1:
 	$(UV) run python scripts/build_weak_labels_v1.py

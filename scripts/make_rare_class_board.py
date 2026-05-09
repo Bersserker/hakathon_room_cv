@@ -2,13 +2,19 @@
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
-from typing import Any
 
 import pandas as pd
-import yaml
-from sklearn.metrics import precision_recall_fscore_support
+
+try:
+    from src.experiments.results import markdown_table, per_class_metrics
+    from src.utils.room_data_contract import ClassSchema, load_splits
+except ModuleNotFoundError:  # pragma: no cover - keeps direct script execution working
+    import sys
+
+    sys.path.append(str(Path(__file__).resolve().parents[1]))
+    from src.experiments.results import markdown_table, per_class_metrics
+    from src.utils.room_data_contract import ClassSchema, load_splits
 
 FOCUS_CLASSES = {2, 3, 5, 11, 17, 18}
 
@@ -33,25 +39,13 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def markdown_table(headers: list[str], rows: list[list[Any]]) -> str:
-    return "\n".join(
-        [
-            "| " + " | ".join(headers) + " |",
-            "| " + " | ".join(["---"] * len(headers)) + " |",
-            *["| " + " | ".join(str(value) for value in row) + " |" for row in rows],
-        ]
-    )
-
-
 def load_class_mapping(path: Path) -> tuple[list[int], dict[int, str]]:
-    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
-    ids = [int(value) for value in payload["prediction"]["valid_class_ids"]]
-    labels = {int(key): str(value) for key, value in payload["id_to_label"].items()}
-    return ids, labels
+    schema = ClassSchema.from_yaml(path)
+    return schema.valid_class_ids, schema.id_to_label
 
 
 def support_from_splits(path: Path, class_ids: list[int]) -> tuple[pd.Series, pd.Series]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload = load_splits(path)
     train_records = [row for fold in payload["folds"] for row in fold["records"]]
     shadow_records = payload["shadow_holdout"]["records"]
     train_support = pd.Series([int(row["result"]) for row in train_records]).value_counts()
@@ -60,22 +54,6 @@ def support_from_splits(path: Path, class_ids: list[int]) -> tuple[pd.Series, pd
         train_support.reindex(class_ids, fill_value=0),
         shadow_support.reindex(class_ids, fill_value=0),
     )
-
-
-def per_class_metrics(frame: pd.DataFrame, class_ids: list[int]) -> dict[str, Any]:
-    precision, recall, f1, _support = precision_recall_fscore_support(
-        frame["target"],
-        frame["pred"],
-        labels=class_ids,
-        zero_division=0,
-    )
-    predicted_support = frame["pred"].value_counts().reindex(class_ids, fill_value=0)
-    return {
-        "precision": precision,
-        "recall": recall,
-        "f1": f1,
-        "predicted_support": predicted_support,
-    }
 
 
 def main() -> None:

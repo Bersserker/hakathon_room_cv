@@ -4,6 +4,14 @@ import json
 
 import pandas as pd
 
+try:
+    from src.experiments.results import sorted_class_cols
+except ModuleNotFoundError:  # pragma: no cover - keeps direct script execution working
+    import sys
+
+    sys.path.append(str(Path(__file__).resolve().parents[1]))
+    from src.experiments.results import sorted_class_cols
+
 
 ID_COLS = [
     "image_id_ext",
@@ -14,12 +22,6 @@ ID_COLS = [
     "source_dataset",
     "pred",
 ]
-
-
-def sorted_class_cols(df: pd.DataFrame, prefix: str) -> list[str]:
-    cols = [c for c in df.columns if c.startswith(prefix)]
-
-    return sorted(cols, key=lambda c: int(c.split("_")[1]))
 
 
 def export_file(

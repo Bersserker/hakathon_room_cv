@@ -7,7 +7,22 @@ from typing import Any
 
 import pandas as pd
 import yaml
-from sklearn.metrics import accuracy_score, f1_score
+
+try:
+    from src.experiments.results import (
+        load_prediction_frame,
+        metrics_from_frame,
+        present_label_macro_f1,
+    )
+except ModuleNotFoundError:  # pragma: no cover - keeps direct script execution working
+    import sys
+
+    sys.path.append(str(Path(__file__).resolve().parents[1]))
+    from src.experiments.results import (
+        load_prediction_frame,
+        metrics_from_frame,
+        present_label_macro_f1,
+    )
 
 CLASS_IDS = list(range(20))
 
@@ -28,38 +43,26 @@ def load_yaml(path: Path) -> dict[str, Any]:
 
 
 def metrics(path: Path) -> dict[str, Any]:
-    frame = pd.read_parquet(path)
-    y_true = frame["target"].to_numpy()
-    y_pred = frame["pred"].to_numpy()
-    per_class = f1_score(y_true, y_pred, average=None, labels=CLASS_IDS, zero_division=0)
+    frame = load_prediction_frame(path, CLASS_IDS)
+    result = metrics_from_frame(frame, CLASS_IDS)
     return {
-        "rows": int(len(frame)),
-        "macro_f1": float(
-            f1_score(y_true, y_pred, average="macro", labels=CLASS_IDS, zero_division=0)
-        ),
-        "accuracy": float(accuracy_score(y_true, y_pred)),
-        "class_5_f1": float(per_class[5]),
-        "class_11_f1": float(per_class[11]),
-        "class_18_f1": float(per_class[18]),
+        "rows": result["rows"],
+        "macro_f1": result["macro_f1"],
+        "accuracy": result["accuracy"],
+        "class_5_f1": float(result["per_class_f1"][5]),
+        "class_11_f1": float(result["per_class_f1"][11]),
+        "class_18_f1": float(result["per_class_f1"][18]),
     }
 
 
 def shadow_metrics(path: Path) -> dict[str, Any]:
-    frame = pd.read_parquet(path)
-    present = sorted(int(value) for value in frame["target"].unique())
+    frame = load_prediction_frame(path, CLASS_IDS)
+    result = metrics_from_frame(frame, CLASS_IDS)
     return {
-        "shadow_rows": int(len(frame)),
-        "shadow_macro_f1_all": float(
-            f1_score(
-                frame["target"], frame["pred"], average="macro", labels=CLASS_IDS, zero_division=0
-            )
-        ),
-        "shadow_macro_f1_present": float(
-            f1_score(
-                frame["target"], frame["pred"], average="macro", labels=present, zero_division=0
-            )
-        ),
-        "shadow_accuracy": float(accuracy_score(frame["target"], frame["pred"])),
+        "shadow_rows": result["rows"],
+        "shadow_macro_f1_all": result["macro_f1"],
+        "shadow_macro_f1_present": present_label_macro_f1(frame),
+        "shadow_accuracy": result["accuracy"],
     }
 
 

@@ -12,26 +12,35 @@ data:
   image_col: image_id_ext
   label_col: result
   num_classes: 20
-  image_size: 224
-  resize_size: 256
+  image_size: 512
+  resize_size: 576
 
 model:
-  backbone: convnext_tiny.in12k_ft_in1k
+  backbone: convnext_xlarge.fb_in22k_ft_in1k_384
   pretrained: true
+  grad_checkpointing: true
   whitelist:
     - convnext_tiny.in12k_ft_in1k
+    - convnext_small.in12k_ft_in1k
+    - convnext_large.fb_in22k_ft_in1k_384
+    - convnext_xlarge.fb_in22k_ft_in1k_384
     - efficientnet_b0
     - resnet50
 
 train:
-  epochs: 20
-  batch_size: 16
-  lr: 0.0001
-  weight_decay: 0.01
+  epochs: 1000
+  batch_size: 1
+  num_workers: 4
+  lr: 0.00002
+  weight_decay: 0.05
+  amp: true
+  seed: 42
+  device: cuda
+  allow_device_fallback: false
 
 early_stopping:
   enabled: true
-  patience: 4
+  patience: 10
   min_delta: 0.001
   monitor: val_macro_f1
   mode: max
@@ -53,20 +62,39 @@ artifacts:
     logs: artifacts/logs
     reports: reports
     mlflow: artifacts/logs/mlruns
-  oof_dir: artifacts/oof/cv03_focal_loss
-  report_path: reports/cv03_focal_loss.md
+  oof_dir: artifacts/oof/cv05_rtx5070_xlarge_512_focal_es
+  report_path: reports/cv05_rtx5070_xlarge_512_focal_es.md
+
+augmentation:
+  library: torchvision
+  policy: safe_v1
+  random_resized_crop:
+    scale: [0.75, 1.0]
+    ratio: [0.85, 1.15]
+  horizontal_flip_p: 0.5
+  color_jitter:
+    brightness: 0.15
+    contrast: 0.15
+    saturation: 0.10
+    hue: 0.0
+  random_grayscale_p: 0.05
+  random_erasing:
+    p: 0.10
+    scale: [0.02, 0.10]
+    ratio: [0.3, 3.3]
+  label_smoothing: 0.0
 
 experiment:
-  version: cv03_focal_loss
+  version: cv05_rtx5070_xlarge_512_focal_es
   loss: focal
   focal_gamma: 2.0
   sampler: balanced
   ratio_policy: none
   weak_label_flag: false
-  feature_flags: img
+  feature_flags: img_heavy_512
   tta_flag: false
 
 mlflow:
   tracking_uri: sqlite:///artifacts/logs/mlflow.db
-  experiment_name: room_type_image_baseline
+  experiment_name: room_type_image_heavy
   artifact_root: artifacts/logs/mlruns

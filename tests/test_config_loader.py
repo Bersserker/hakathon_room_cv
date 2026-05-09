@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from src.training.config_loader import load_config, normalize_artifact_paths
+from src.training.config_loader import load_config, load_release_config, normalize_artifact_paths
 
 CONFIG_PATH = Path("configs/model/image_baseline_v1.yaml")
 
@@ -59,6 +59,21 @@ def test_legacy_artifact_config_is_normalized():
     assert cfg["artifacts"]["roots"]["checkpoints"] == "custom/checkpoints"
     assert cfg["artifacts"]["roots"]["mlflow"] == "custom/mlruns"
     assert cfg["checkpoint"]["dir"] == "custom/checkpoints"
+
+
+def test_all_model_configs_satisfy_training_contract():
+    for path in sorted(Path("configs/model").glob("*.yaml")):
+        cfg = load_config(path)
+        assert cfg["experiment"]["loss"]
+        assert cfg["experiment"]["sampler"]
+        assert cfg["artifacts"]["oof_dir"]
+        assert cfg["artifacts"]["report_path"]
+
+
+def test_release_configs_validate_existing_artifacts():
+    for path in sorted(Path("configs/release").glob("*.yaml")):
+        cfg = load_release_config(path)
+        assert cfg["release"]["candidate"]
 
 
 def test_missing_required_config_section_fails_predictably(tmp_path):

@@ -142,7 +142,9 @@ def _fold_metric_row(
 def summarize_fold_metrics(fold_metrics: pd.DataFrame) -> dict[str, Any]:
     summary: dict[str, Any] = {"n_folds": int(len(fold_metrics))}
     for metric in METRIC_NAMES:
-        values = pd.to_numeric(fold_metrics[metric], errors="coerce").dropna().to_numpy(dtype=float)
+        values = (
+            pd.to_numeric(fold_metrics[metric], errors="coerce").dropna().to_numpy(dtype=float)
+        )
         if len(values) == 0:
             mean = std = ci95 = float("nan")
         else:
