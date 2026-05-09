@@ -67,6 +67,10 @@ def validate_config(cfg: dict[str, Any]) -> None:
         if field not in cfg["data"]:
             raise ValueError(f"Config field 'data.{field}' is required")
 
+    for field in ("epochs", "batch_size", "num_workers", "lr", "weight_decay", "amp", "seed"):
+        if field not in cfg["train"]:
+            raise ValueError(f"Config field 'train.{field}' is required")
+
     experiment = cfg["experiment"]
     loss = experiment.get("loss")
     if loss not in SUPPORTED_LOSSES:
