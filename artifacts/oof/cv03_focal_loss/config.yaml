@@ -29,7 +29,7 @@ train:
   weight_decay: 0.01
   amp: true
   seed: 42
-  device: mps
+  device: cuda
 debug:
   enabled: false
   train_samples: 64

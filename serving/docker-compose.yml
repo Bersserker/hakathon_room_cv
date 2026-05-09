@@ -1,0 +1,16 @@
+services:
+  room-classifier-api:
+    build:
+      context: .
+      dockerfile: serving/Dockerfile
+    container_name: room-classifier-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./artifacts:/app/artifacts
+      - ./models:/app/models
+      - ./configs:/app/configs
+    environment:
+      - MODEL_PATH=/app/artifacts/checkpoints/best_model.pt
+      - CONFIG_PATH=/app/configs/model/release.yaml
+    restart: unless-stopped
