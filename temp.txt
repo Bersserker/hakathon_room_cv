@@ -1,61 +1,26 @@
-# Architecture cleanup candidates
+1) Есть ли скрытый private test / leaderboard, или итоговая оценка будет только по тому, что мы сами покажем на val?
 
-## 1. Deepen the image-run module
+В рамках кейса отдельный hidden/private leaderboard не предусмотрен. Оценка будет строиться на основе:
+качества и воспроизводимости вашего решения,
+метрик, которые вы демонстрируете на собственной валидации,
+качества оформления, экспериментов и защиты проекта.
+При этом рекомендуем корректно организовать train/val split и избегать утечек данных, поскольку эксперты могут обращать внимание на реалистичность полученных метрик.
 
-Files: `src/training/train_image.py`, `src/training/config_loader.py`, `configs/model/*.yaml`, `tests/test_training_imbalance.py`
+2) Вычислительные ресурсы для тестирования: Будет ли жюри/эксперт запускать наш код локально на своих машинах? Если да, то какие там технические характеристики (наличие GPU, объем VRAM)?
+Гарантированного запуска полного обучения со стороны экспертов не предполагается. Основной акцент — на воспроизводимости, корректности пайплайна и демонстрации результатов.
+Рекомендуется:
+- предоставить отдельные скрипты train/inference,
+- описать зависимости,
+- приложить инструкции по запуску,
+- по возможности предусмотреть запуск inference без GPU.
+Точные характеристики инфраструктуры жюри заранее не фиксируются, поэтому желательно избегать решений, требующих редкого или очень ресурсоёмкого оборудования.
 
-Problem: `train_image.py` handles split loading, shadow holdout handling, weak-label injection, transforms, sampler/loss policy, checkpointing, MLflow, OOF/shadow exports, and reports. The interface is too wide: callers and tests need to know ordering and config details that should be private.
+3) Требования к интерфейсу: Для сдачи достаточно ли предоставить инструкцию по локальному запуску (через Docker), или требуется задеплоенное решение на облачном сервере?
 
-Solution: Treat an image run as one deeper module. Keep the CLI thin. Move implementation details behind an image-run API, so "run one fold" and "run all folds" own the full training contract.
-
-Benefits: Keep the "never train on shadow holdout" rule, ratio rules, class schema, and artifact policy in one place. New experiment configs get full train/eval/report behavior without knowing internal ordering. Tests can call the image-run interface with tiny fake splits.
-
-## 2. Deepen the room data contract module
-
-Files: `src/utils/labeled_data.py`, `src/datasets/data01_preprocess.py`, `src/datasets/data02_build_splits.py`, `src/datasets/make_manifest.py`, `src/datasets/weak_images_v1.py`, `src/datasets/weak_labels_v1.py`, `src/training/train_image.py`, `src/inference/validate_submission.py`, `src/diagnostics/adversarial_data.py`
-
-Problem: Image identity, manifest fields, split records, hash names, ratio, and required columns are normalized in several places. The split contract is mostly implicit. There is also artifact drift risk: `data/splits/splits_v1.json` reports 500 shadow rows, while registry/reports mention 477.
-
-Solution: Create one room data contract module that owns image ID normalization, manifest/split record parsing, leakage keys, ratio validation, class schema validation, and serialization.
-
-Benefits: Keep data invariants in one place. Preprocessing, split building, diagnostics, training, weak data, and inference can share the same contract. Tests become contract tests instead of per-caller rechecks.
-
-## 3. Deepen the experiment result module
-
-Files: `src/training/train_image.py`, `scripts/make_experiment_registry.py`, `scripts/make_rare_class_board.py`, `scripts/make_error_taxonomy.py`, `scripts/optimize_class_bias.py`, `src/export_logits.py`, `configs/release/*.yaml`, `reports/rc1_decision.md`
-
-Problem: OOF/shadow metrics, present-label Macro F1, prediction schema, class IDs, and report tables are reimplemented in several places. Release config is maintained by hand. `reports/rc1_decision.md` says `cv03_balanced_sampler`, but checkpoint paths use `*_v01.ckpt`, which is easy to misread or let drift.
-
-Solution: Add an experiment result module that loads an OOF run directory, validates prediction schema and split consistency, computes standard metrics, and feeds the registry, reports, class-bias tuning, and release decisions.
-
-Benefits: Keep metric definitions and artifact consistency checks in one place. Every report and release decision can use the same code path. Tests can use a tiny fake OOF directory.
-
-## 4. Deepen the Room predictor module
-
-Files: `src/inference/predict.py`, `demo/app.py`, `configs/release/*.yaml`, `src/inference/validate_submission.py`
-
-Problem: Batch inference and the Gradio demo share behavior by importing internals from `predict.py`: transforms, checkpoint loading, class bias, TTA, device selection, and deterministic setup. This is a real seam. Batch submission and the demo are adapters over the same predictor.
-
-Solution: Put release-config loading, model ensemble setup, transforms, class bias, TTA, and prediction formatting behind one Room predictor module. Batch inference and the demo become thin adapters.
-
-Benefits: Keep inference behavior in one place. Submission and demo predictions stay consistent. Tests can verify that both adapters use the same predictor behavior.
-
-## 5. Deepen weak room candidate curation
-
-Files: `src/datasets/weak_labels_v1.py`, `src/datasets/weak_images_v1.py`, `src/datasets/make_weak_labels.py`, `scripts/build_weak_labels_v1.py`, `scripts/build_weak_images_v1.py`, `configs/model/weak_images_v1.yaml`
-
-Problem: Weak label/image logic duplicates source mapping for classes 5/6/11, image normalization, leakage checks, duplicate rules, and audit report formatting. There is also a legacy `make_weak_labels.py` path with different policy details.
-
-Solution: Create one weak room candidate module that owns heuristic source policy, leakage/dedup gates, scoring/quota, weak weights, and audit output. Weak labels and copied weak images become adapters.
-
-Benefits: Keep rare-class weak data policy in one place. Future weak sources can reuse the same gates and audit format. Tests can focus on curation invariants once.
-
-## 6. Deepen the experiment config contract
-
-Files: `configs/model/*.yaml`, `configs/release/*.yaml`, `src/training/config_loader.py`, `src/training/train_image.py`, `src/inference/predict.py`
-
-Problem: Model configs repeat large blocks. `config_loader.py` normalizes artifact roots but does not validate the full training/release contract. Downstream code still knows many config details. Experiment names, artifact dirs, report paths, and checkpoint paths are hand-synced.
-
-Solution: Make the config contract module deeper: compose shared defaults with experiment overrides, validate supported losses/samplers/backbones, derive artifact paths from experiment identity, and validate release config against trained artifacts.
-
-Benefits: Keep config rules in one place. New image runs are safer to create. Tests can load every config and catch drift before training.
+Задеплоенное облачное решение не является обязательным требованием.
+Достаточно:
+- локально запускаемого прототипа,
+- demo-скрипта,
+- Streamlit/Gradio интерфейса,
+- Docker-инструкции или README с шагами запуска.
+Если есть возможность показать онлайн-демо — это может быть дополнительным плюсом, но обязательным не является.
