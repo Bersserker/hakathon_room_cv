@@ -1,52 +1,42 @@
+from __future__ import annotations
+
 import os
+from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
-import torch
-import yaml
-import timm
+from src.inference.room_predictor import RoomPredictor
 
 
-def load_model():
-    model_path = Path(os.getenv("MODEL_PATH", "releases/rc1/model.pt"))
-    config_path = Path(os.getenv("CONFIG_PATH", "releases/rc1/config.yaml"))
+def config_path() -> Path:
+    return Path(os.getenv("CONFIG_PATH", "configs/release/rc1.yaml"))
 
-    if not model_path.exists():
-        raise FileNotFoundError(f"Model checkpoint not found: {model_path}")
 
-    if not config_path.exists():
-        raise FileNotFoundError(f"Config not found: {config_path}")
+@lru_cache(maxsize=1)
+def load_model() -> RoomPredictor:
+    return RoomPredictor.from_config_path(config_path())
 
-    with open(config_path, "r", encoding="utf-8") as f:
-        cfg = yaml.safe_load(f)
 
-    backbone = cfg["model"]["backbone"]
-    num_classes = cfg["data"]["num_classes"]
-    image_size = cfg["data"]["image_size"]
+def get_model_info(predictor: RoomPredictor) -> dict[str, Any]:
+    cfg = predictor.cfg
+    release_cfg = cfg.get("release", {}) or {}
+    data_cfg = cfg.get("data", {}) or {}
+    model_cfg = cfg.get("model", {}) or {}
+    checkpoints = model_cfg.get("checkpoints") or []
+    if not checkpoints and model_cfg.get("checkpoint"):
+        checkpoints = [model_cfg["checkpoint"]]
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    model = timm.create_model(
-        backbone,
-        pretrained=False,
-        num_classes=num_classes,
-    )
-
-    checkpoint = torch.load(model_path, map_location=device)
-
-    if "model_state_dict" in checkpoint:
-        state_dict = checkpoint["model_state_dict"]
-    elif "state_dict" in checkpoint:
-        state_dict = checkpoint["state_dict"]
-    else:
-        state_dict = checkpoint
-
-    model.load_state_dict(state_dict)
-    model.to(device)
-    model.eval()
-
-    class_names = {
-        i: f"class_{i}"
-        for i in range(num_classes)
+    return {
+        "model_name": str(
+            release_cfg.get("candidate")
+            or release_cfg.get("name")
+            or model_cfg.get("backbone")
+            or "room_classifier"
+        ),
+        "num_classes": int(predictor.num_classes),
+        "input_size": int(data_cfg.get("image_size", 224)),
+        "framework": "pytorch/timm",
+        "status": "loaded",
+        "device": str(predictor.device),
+        "checkpoints": len(checkpoints),
     }
-
-    return model, device, image_size, class_names

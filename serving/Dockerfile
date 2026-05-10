@@ -10,7 +10,6 @@ COPY serving/app ./serving/app
 COPY src ./src
 COPY configs ./configs
 COPY models ./models
-COPY artifacts/checkpoints ./artifacts/checkpoints
 
 EXPOSE 8000
 
