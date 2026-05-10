@@ -1,0 +1,26 @@
+release:
+  name: rc1_single
+  candidate: release_cv03_balanced_sampler_trainval_90_10
+  notes: Single release model trained on train_df + val_df with a 90/10 group-safe
+    validation split for early stopping.
+data:
+  test_csv: data/raw/test_df.csv
+  images_test_dir: data/raw/test_images/test_images
+  class_mapping: configs/data/class_mapping.yaml
+  num_classes: 20
+  image_size: 224
+  resize_size: 256
+model:
+  backbone: convnext_tiny.in12k_ft_in1k
+  checkpoint: artifacts/checkpoints/release_cv03_balanced_sampler_trainval_90_10.ckpt
+postprocess:
+  class_bias: null
+inference:
+  seed: 42
+  device: mps
+  batch_size: 64
+  num_workers: 0
+  tta: false
+  validate_after: true
+  output_submission: releases/rc1_single/submission.csv
+  output_predictions: releases/rc1_single/predictions.parquet

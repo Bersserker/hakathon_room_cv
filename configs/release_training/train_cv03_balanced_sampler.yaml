@@ -1,0 +1,92 @@
+data:
+  images_train_dir: data/raw/train_images/train_images
+  images_val_dir: data/raw/val_images/val_images
+  images_test_dir: data/raw/test_images/test_images
+  images_csv_path: data/raw
+  train_df: data/raw/train_df.csv
+  val_df: data/raw/val_df.csv
+  test_df: data/raw/test_df.csv
+  manifest: data/processed/data_manifest.parquet
+  use_manifest: true
+  splits_json: data/splits/splits_v1.json
+  dataset_version: ds_trainval_release_v1
+  split_version: release_trainval_90_10_v1
+  image_col: image_id_ext
+  label_col: result
+  num_classes: 20
+  image_size: 224
+  resize_size: 256
+  class_mapping: configs/data/class_mapping.yaml
+
+release_training:
+  val_fraction: 0.1
+  validation_fold_index: 0
+
+release_output:
+  config_path: configs/release/rc1_single.yaml
+  name: rc1_single
+  candidate: release_cv03_balanced_sampler_trainval_90_10
+  output_submission: releases/rc1_single/submission.csv
+  output_predictions: releases/rc1_single/predictions.parquet
+  inference_device: mps
+
+model:
+  backbone: convnext_tiny.in12k_ft_in1k
+  pretrained: true
+  whitelist:
+    - convnext_tiny.in12k_ft_in1k
+    - efficientnet_b0
+    - resnet50
+
+train:
+  epochs: 200
+  batch_size: 16
+  num_workers: 4
+  lr: 0.0001
+  weight_decay: 0.01
+  amp: true
+  seed: 42
+  device: mps
+  allow_device_fallback: false
+
+early_stopping:
+  enabled: true
+  patience: 10
+  min_delta: 0.001
+  monitor: val_macro_f1
+  mode: max
+
+debug:
+  enabled: false
+  train_samples: 64
+  val_samples: 32
+  epochs: 1
+  num_workers: 0
+
+checkpoint:
+  dir: artifacts/checkpoints
+  output_path: artifacts/checkpoints/release_cv03_balanced_sampler_trainval_90_10.ckpt
+  monitor: val_macro_f1
+
+artifacts:
+  roots:
+    checkpoints: artifacts/checkpoints
+    logs: artifacts/logs
+    reports: reports
+    mlflow: artifacts/logs/mlruns
+  oof_dir: artifacts/release/cv03_balanced_sampler_trainval_90_10
+  report_path: reports/release_cv03_balanced_sampler_trainval_90_10.md
+
+experiment:
+  version: release_cv03_balanced_sampler_trainval_90_10
+  loss: ce
+  sampler: balanced
+  ratio_policy: none
+  weak_label_flag: false
+  feature_flags: img_trainval_release
+  tta_flag: false
+
+mlflow:
+  tracking_uri: sqlite:///artifacts/logs/mlflow.db
+  experiment_name: room_type_image_release
+  artifact_root: artifacts/logs/mlruns

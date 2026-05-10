@@ -1,8 +1,9 @@
-.PHONY: setup lint test preprocess splits splits-preprocess smoke-train train infer validate-submission full-pipeline weak-labels-v1 weak-images-v1 adversarial-validation format pre-commit-install mlflow-ui
+.PHONY: setup lint test preprocess splits splits-preprocess smoke-train train train-release infer validate-submission full-pipeline weak-labels-v1 weak-images-v1 adversarial-validation format pre-commit-install mlflow-ui
 
 UV ?= uv
 CONFIG ?= configs/model/image_baseline_v1.yaml
 RELEASE_CONFIG ?= configs/release/rc1.yaml
+RELEASE_TRAIN_CONFIG ?= configs/release_training/train_cv03_balanced_sampler.yaml
 SUBMISSION ?= releases/rc1/submission.csv
 PREPROCESS_DIR ?= data/preprocess
 FULL_CONFIG ?= configs/model/cv03_focal_loss_preprocess.yaml
@@ -37,6 +38,9 @@ smoke-train:
 
 train:
 	$(UV) run python src/training/train_image.py --config $(CONFIG) --fold $(FOLD)
+
+train-release:
+	PYTORCH_ENABLE_MPS_FALLBACK=1 $(UV) run python src/training/train_release.py --config $(RELEASE_TRAIN_CONFIG)
 
 infer:
 	$(UV) run python -m src.inference.predict --config $(RELEASE_CONFIG)

@@ -1,33 +1,32 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional
 
 
 class PredictRequest(BaseModel):
-    image_path: str = Field(..., example="/app/data/example.jpg")
+    image_path: str = Field(..., json_schema_extra={"example": "/app/data/example.jpg"})
 
 
 class PredictResponse(BaseModel):
     class_id: int
-    class_name: Optional[str] = None
+    class_name: str | None = None
     confidence: float
 
 
 class BatchPredictRequest(BaseModel):
-    image_paths: List[str] = Field(..., example=[
-        "/app/data/img1.jpg",
-        "/app/data/img2.jpg",
-    ])
+    image_paths: list[str] = Field(
+        ...,
+        json_schema_extra={"example": ["/app/data/img1.jpg", "/app/data/img2.jpg"]},
+    )
 
 
 class BatchPredictionItem(BaseModel):
     image_path: str
     class_id: int
-    class_name: Optional[str] = None
+    class_name: str | None = None
     confidence: float
 
 
 class BatchPredictResponse(BaseModel):
-    predictions: List[BatchPredictionItem]
+    predictions: list[BatchPredictionItem]
 
 
 class ModelInfoResponse(BaseModel):
@@ -36,3 +35,5 @@ class ModelInfoResponse(BaseModel):
     input_size: int
     framework: str
     status: str
+    device: str | None = None
+    checkpoints: int | None = None
