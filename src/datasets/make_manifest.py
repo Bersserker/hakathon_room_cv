@@ -100,13 +100,9 @@ def url_file_name(image_url: str | None) -> str | None:
     return file_name or None
 
 
-def download_image(path: Path, image_url: str | None, expected_name: str) -> str | None:
+def download_image(path: Path, image_url: str | None) -> str | None:
     if not image_url or pd.isna(image_url):
-        return None
-
-    source_name = url_file_name(image_url)
-    if source_name != expected_name:
-        return f"url filename mismatch: expected {expected_name}, got {source_name}"
+        return "empty url"
 
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_suffix(f"{path.suffix}.part")
@@ -114,15 +110,19 @@ def download_image(path: Path, image_url: str | None, expected_name: str) -> str
     try:
         with requests.get(image_url, timeout=60, stream=True) as response:
             response.raise_for_status()
+
             with tmp_path.open("wb") as file_obj:
                 for chunk in response.iter_content(chunk_size=1024 * 1024):
                     if chunk:
                         file_obj.write(chunk)
+
         tmp_path.replace(path)
         return None
+
     except requests.RequestException as exc:
         if tmp_path.exists():
             tmp_path.unlink()
+
         return f"download failed: {exc}"
 
 
@@ -147,7 +147,7 @@ def check_image(path: Path, image_id: str, split: str, image_url: str | None = N
     }
 
     if not path.exists():
-        download_error = download_image(path, image_url, image_id)
+        download_error = download_image(path, image_url)
     else:
         download_error = None
 

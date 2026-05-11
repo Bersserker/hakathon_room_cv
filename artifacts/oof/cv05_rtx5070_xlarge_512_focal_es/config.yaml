@@ -1,0 +1,99 @@
+data:
+  images_train_dir: data/raw/train_images/train_images
+  images_val_dir: data/raw/val_images/val_images
+  images_test_dir: data/raw/test_images/test_images
+  images_csv_path: data/raw
+  train_df: data/raw/train_df.csv
+  test_df: data/raw/test_df.csv
+  val_df: data/raw/val_df.csv
+  splits_json: data/splits/splits_v1.json
+  dataset_version: ds_main_v1
+  split_version: splits_v1
+  image_col: image_id_ext
+  label_col: result
+  num_classes: 20
+  image_size: 512
+  resize_size: 576
+model:
+  backbone: convnext_xlarge.fb_in22k_ft_in1k_384
+  pretrained: true
+  grad_checkpointing: true
+  whitelist:
+  - convnext_tiny.in12k_ft_in1k
+  - convnext_small.in12k_ft_in1k
+  - convnext_large.fb_in22k_ft_in1k_384
+  - convnext_xlarge.fb_in22k_ft_in1k_384
+  - efficientnet_b0
+  - resnet50
+train:
+  epochs: 1000
+  batch_size: 1
+  num_workers: 4
+  lr: 2.0e-05
+  weight_decay: 0.05
+  amp: true
+  seed: 42
+  device: cuda
+  allow_device_fallback: false
+early_stopping:
+  enabled: true
+  patience: 10
+  min_delta: 0.001
+  monitor: val_macro_f1
+  mode: max
+debug:
+  enabled: false
+  train_samples: 64
+  val_samples: 32
+  epochs: 1
+  num_workers: 0
+checkpoint:
+  dir: artifacts/checkpoints
+  monitor: val_macro_f1
+artifacts:
+  roots:
+    checkpoints: artifacts/checkpoints
+    logs: artifacts/logs
+    reports: reports
+    mlflow: artifacts/logs/mlruns
+  oof_dir: artifacts/oof/cv05_rtx5070_xlarge_512_focal_es
+  report_path: reports/cv05_rtx5070_xlarge_512_focal_es.md
+augmentation:
+  library: torchvision
+  policy: safe_v1
+  random_resized_crop:
+    scale:
+    - 0.75
+    - 1.0
+    ratio:
+    - 0.85
+    - 1.15
+  horizontal_flip_p: 0.5
+  color_jitter:
+    brightness: 0.15
+    contrast: 0.15
+    saturation: 0.1
+    hue: 0.0
+  random_grayscale_p: 0.05
+  random_erasing:
+    p: 0.1
+    scale:
+    - 0.02
+    - 0.1
+    ratio:
+    - 0.3
+    - 3.3
+  label_smoothing: 0.0
+experiment:
+  version: cv05_rtx5070_xlarge_512_focal_es
+  loss: focal
+  focal_gamma: 2.0
+  sampler: balanced
+  ratio_policy: none
+  weak_label_flag: false
+  feature_flags: img_heavy_512
+  tta_flag: false
+mlflow:
+  tracking_uri: sqlite:///artifacts/logs/mlflow.db
+  experiment_name: room_type_image_heavy
+  artifact_root: artifacts/logs/mlruns
