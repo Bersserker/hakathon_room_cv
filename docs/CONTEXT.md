@@ -53,27 +53,15 @@ Shadow holdout не содержит class `18`, поэтому:
 
 - `convnext_tiny.in12k_ft_in1k`, image size `224`.
 
-Whitelist backbone:
+Текущий release:
 
-- `convnext_tiny.in12k_ft_in1k`
-- `efficientnet_b0`
-- `resnet50`
+- candidate: `release_cv03_balanced_sampler_trainval_90_10`.
+- release configs: `configs/release/rc1.yaml`, `configs/release/rc1_single.yaml`.
+- checkpoint: `artifacts/checkpoints/release_cv03_balanced_sampler_trainval_90_10.ckpt`.
+- release validation Macro F1: `0.671832`.
+- report: `reports/release_cv03_balanced_sampler_trainval_90_10.md`.
 
-Текущий RC1:
-
-- candidate: `cv03_balanced_sampler`.
-- config: `configs/model/cv03_balanced_sampler.yaml`.
-- release config: `configs/release/rc1.yaml`.
-- OOF Macro F1: `0.630100`.
-- Shadow present-class Macro F1: `0.747438`.
-
-Второй модельный кандидат для diversity:
-
-- `model2_v1` на `efficientnet_b0`.
-- config: `configs/model/model2_v1.yaml`.
-- artifacts: `artifacts/oof/model2_v1/`.
-- report: `reports/model2_eval_v1.md`.
-- назначение: дать ошибки другой семьи для возможного ensemble/diagnostics.
+Полные CV-отчёты для сравнения оставлены в `reports/cv*.md`.
 
 ## Известные слабые места
 

@@ -2,7 +2,7 @@
 
 ## Candidate
 
-Current candidate: `cv03_balanced_sampler` ConvNeXt-Tiny fold ensemble.
+Current candidate: `release_cv03_balanced_sampler_trainval_90_10` — single ConvNeXt-Tiny checkpoint trained with the selected balanced-sampler recipe on `train_df + val_df` and a group-safe 90/10 validation split.
 
 ## Files
 
@@ -12,7 +12,7 @@ Current candidate: `cv03_balanced_sampler` ConvNeXt-Tiny fold ensemble.
 - Model card: `releases/rc1/model_card.md`.
 - Checksums: `releases/rc1/sha256sums.txt`.
 
-Checkpoints are referenced from `artifacts/checkpoints/` to avoid duplicating large files in the release directory.
+The checkpoint is referenced from `artifacts/checkpoints/release_cv03_balanced_sampler_trainval_90_10.ckpt` to avoid duplicating large files in the release directory.
 
 ## Generate submission
 

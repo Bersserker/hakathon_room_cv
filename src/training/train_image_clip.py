@@ -30,13 +30,14 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - keeps direct script execution working
     from config_loader import load_config
 
+
 class CLIPImageClassifier(nn.Module):
     def __init__(
         self,
         num_classes,
         model_name="ViT-B-32",
         pretrained_name="openai",
-        freeze_image_encoder=False,   # 👈 добавить
+        freeze_image_encoder=False,  # 👈 добавить
     ):
         super().__init__()
 

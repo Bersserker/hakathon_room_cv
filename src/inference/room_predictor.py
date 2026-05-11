@@ -225,7 +225,9 @@ class RoomPredictor:
         logits = self.logits_for_tensor(tensor).detach().cpu().numpy()
         probs = torch.softmax(torch.from_numpy(logits), dim=1).numpy()
         preds = probs.argmax(axis=1).astype(int)
-        return PredictionBatch(image_ids=["uploaded_image"], logits=logits, probs=probs, preds=preds)
+        return PredictionBatch(
+            image_ids=["uploaded_image"], logits=logits, probs=probs, preds=preds
+        )
 
     def topk_labels(self, image: Image.Image, k: int = 3) -> dict[str, float]:
         batch = self.predict_image(image)

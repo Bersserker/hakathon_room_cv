@@ -294,9 +294,7 @@ def write_server_release_config(cfg: dict[str, Any], checkpoint_path: Path) -> P
             "images_test_dir": cfg["data"].get(
                 "images_test_dir", "data/raw/test_images/test_images"
             ),
-            "class_mapping": cfg["data"].get(
-                "class_mapping", "configs/data/class_mapping.yaml"
-            ),
+            "class_mapping": cfg["data"].get("class_mapping", "configs/data/class_mapping.yaml"),
             "num_classes": int(cfg["data"].get("num_classes", 20)),
             "image_size": int(cfg["data"].get("image_size", 224)),
             "resize_size": int(cfg["data"].get("resize_size", 256)),

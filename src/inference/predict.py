@@ -121,9 +121,7 @@ def run_inference(config_path: Path) -> dict[str, Any]:
         cfg.get("model", {}).get("checkpoint")
     ]
     checkpoints = [
-        str(item["path"] if isinstance(item, dict) else item)
-        for item in checkpoint_items
-        if item
+        str(item["path"] if isinstance(item, dict) else item) for item in checkpoint_items if item
     ]
 
     return {

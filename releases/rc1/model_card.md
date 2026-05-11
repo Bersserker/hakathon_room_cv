@@ -6,8 +6,8 @@
 - Classes: 20 classes `0..19`.
 - Backbone: `convnext_tiny.in12k_ft_in1k` from `timm`.
 - Input size: 224.
-- Candidate run: `cv03_balanced_sampler`.
-- Checkpoints: 5 fold checkpoints in `artifacts/checkpoints/`.
+- Candidate run: `release_cv03_balanced_sampler_trainval_90_10`.
+- Checkpoint: `artifacts/checkpoints/release_cv03_balanced_sampler_trainval_90_10.ckpt`.
 
 ## Intended use
 
@@ -15,22 +15,19 @@ Generate `submission.csv` for the hackathon test set and provide a local demo fo
 
 ## Metrics
 
-- OOF Macro F1: `0.630100`.
-- OOF Accuracy: `0.644893`.
-- Shadow Macro F1 all labels: `0.710066`.
-- Shadow Macro F1 present labels: `0.747438`.
-- Shadow Accuracy: `0.746331`.
+- Release validation Macro F1: `0.671832`.
+- Release validation split: group-safe 90/10 split over combined `train_df + val_df`.
+- Reference CV recipe: `cv03_balanced_sampler`.
 
 ## Data split
 
-`data/splits/splits_v1.json` uses grouped stratified folds over `item_id` and `content_hash`. `val_df` is a separate shadow holdout.
+The release checkpoint is trained on the combined labeled data with a group-safe 90/10 validation split for early stopping. The development CV split remains documented in `data/splits/splits_v1.json` and related reports.
 
 ## Limitations
 
-- Shadow holdout has no class `18` support.
 - Some visually close classes remain difficult: `2/3`, `7/8/9`, `18/19`.
-- Weak labels are not included in RC1.
-- Ratio weighting was fixed in code but needs retraining for final inclusion.
+- Weak labels are not included in this release checkpoint.
+- Existing `releases/rc1_single/submission.csv` is not regenerated automatically when the release config changes.
 
 ## Reproducibility
 

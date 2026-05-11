@@ -88,7 +88,9 @@ def predict_batch(request: BatchPredictRequest):
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except (UnidentifiedImageError, OSError) as exc:
-            raise HTTPException(status_code=400, detail=f"File is not a valid image: {image_path}") from exc
+            raise HTTPException(
+                status_code=400, detail=f"File is not a valid image: {image_path}"
+            ) from exc
 
         result["image_path"] = image_path
         predictions.append(result)
