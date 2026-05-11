@@ -1,11 +1,8 @@
 import mlflow
-import pandas as pd
 from pathlib import Path
 
 # подключаемся ТОЛЬКО к sqlite
-mlflow.set_tracking_uri(
-    "sqlite:///artifacts/logs/mlflow.db"
-)
+mlflow.set_tracking_uri("sqlite:///artifacts/logs/mlflow.db")
 
 # получаем все эксперименты
 experiments = mlflow.search_experiments()
@@ -18,16 +15,10 @@ if not experiments:
     raise RuntimeError("No experiments found in mlflow.db")
 
 # все experiment ids
-experiment_ids = [
-    exp.experiment_id
-    for exp in experiments
-]
+experiment_ids = [exp.experiment_id for exp in experiments]
 
 # вытаскиваем runs
-runs = mlflow.search_runs(
-    experiment_ids=experiment_ids,
-    output_format="pandas"
-)
+runs = mlflow.search_runs(experiment_ids=experiment_ids, output_format="pandas")
 
 print("\nRuns shape:", runs.shape)
 
@@ -43,12 +34,9 @@ print(f"\nSaved to: {out_path}")
 
 # leaderboard
 cols = [
-    c for c in runs.columns
-    if (
-        c.startswith("metrics.")
-        or c.startswith("params.")
-        or c == "run_id"
-    )
+    c
+    for c in runs.columns
+    if (c.startswith("metrics.") or c.startswith("params.") or c == "run_id")
 ]
 
 print("\nLeaderboard preview:")

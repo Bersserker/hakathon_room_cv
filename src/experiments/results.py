@@ -5,7 +5,12 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, precision_recall_fscore_support
+from sklearn.metrics import (
+    accuracy_score,
+    confusion_matrix,
+    f1_score,
+    precision_recall_fscore_support,
+)
 
 REQUIRED_PREDICTION_COLUMNS = {"target", "pred"}
 
@@ -132,7 +137,9 @@ def macro_f1_from_scores(
     return float(f1_score(targets, preds, average="macro", labels=class_ids, zero_division=0))
 
 
-def load_prediction_frame(path: str | Path, class_ids: list[int], *, require_scores: bool = False) -> pd.DataFrame:
+def load_prediction_frame(
+    path: str | Path, class_ids: list[int], *, require_scores: bool = False
+) -> pd.DataFrame:
     path = Path(path)
     frame = pd.read_parquet(path)
     validate_prediction_frame(frame, class_ids, source=path, require_scores=require_scores)

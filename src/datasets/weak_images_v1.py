@@ -15,7 +15,11 @@ from src.datasets.weak_room_candidates import (
     normalize_image_id_ext,
     source_name_from_path as candidate_source_name_from_path,
 )
-from src.utils.room_data_contract import ClassSchema, load_splits as contract_load_splits, require_columns
+from src.utils.room_data_contract import (
+    ClassSchema,
+    load_splits as contract_load_splits,
+    require_columns,
+)
 
 VERSION = "weak_images_v1"
 DEFAULT_WEAK_WEIGHT = 0.35

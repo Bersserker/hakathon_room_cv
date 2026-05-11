@@ -62,7 +62,15 @@ def test_legacy_artifact_config_is_normalized():
 
 
 def test_all_model_configs_satisfy_training_contract():
-    required_train_fields = {"epochs", "batch_size", "num_workers", "lr", "weight_decay", "amp", "seed"}
+    required_train_fields = {
+        "epochs",
+        "batch_size",
+        "num_workers",
+        "lr",
+        "weight_decay",
+        "amp",
+        "seed",
+    }
     for path in sorted(Path("configs/model").glob("*.yaml")):
         cfg = load_config(path)
         assert cfg["experiment"]["loss"]

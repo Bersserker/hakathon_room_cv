@@ -1,7 +1,7 @@
 release:
   name: rc1
-  candidate: cv03_balanced_sampler
-  notes: Current best available OOF/shadow candidate before retraining ratio/sampler-v2 ablations.
+  candidate: release_cv03_balanced_sampler_trainval_90_10
+  notes: Single ConvNeXt-Tiny release checkpoint trained with the selected balanced-sampler recipe on train_df + val_df and a group-safe 90/10 validation split.
 
 data:
   test_csv: data/raw/test_df.csv
@@ -13,17 +13,7 @@ data:
 
 model:
   backbone: convnext_tiny.in12k_ft_in1k
-  checkpoints:
-    - path: artifacts/checkpoints/roomclf_convnexttiny_fold0_224_v01.ckpt
-      fold: 0
-    - path: artifacts/checkpoints/roomclf_convnexttiny_fold1_224_v01.ckpt
-      fold: 1
-    - path: artifacts/checkpoints/roomclf_convnexttiny_fold2_224_v01.ckpt
-      fold: 2
-    - path: artifacts/checkpoints/roomclf_convnexttiny_fold3_224_v01.ckpt
-      fold: 3
-    - path: artifacts/checkpoints/roomclf_convnexttiny_fold4_224_v01.ckpt
-      fold: 4
+  checkpoint: artifacts/checkpoints/release_cv03_balanced_sampler_trainval_90_10.ckpt
 
 postprocess:
   class_bias: null

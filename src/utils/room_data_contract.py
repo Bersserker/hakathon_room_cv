@@ -32,7 +32,9 @@ class ClassSchema:
         if not isinstance(payload, dict):
             raise ValueError(f"{path} must contain a mapping")
 
-        prediction = payload.get("prediction", {}) if isinstance(payload.get("prediction"), dict) else {}
+        prediction = (
+            payload.get("prediction", {}) if isinstance(payload.get("prediction"), dict) else {}
+        )
         if "valid_class_ids" in prediction:
             valid_class_ids = sorted(int(value) for value in prediction["valid_class_ids"])
         elif "id_to_label" in payload:
@@ -87,14 +89,18 @@ def validate_class_ids(values: Iterable[Any], valid_class_ids: Iterable[int], so
         raise ValueError(f"{source} contains classes outside schema: {invalid}")
 
 
-def records_to_frame(records: list[dict[str, Any]], image_col: str = IMAGE_ID_COLUMN) -> pd.DataFrame:
+def records_to_frame(
+    records: list[dict[str, Any]], image_col: str = IMAGE_ID_COLUMN
+) -> pd.DataFrame:
     frame = pd.DataFrame(records).copy()
     if image_col in frame.columns:
         frame[image_col] = frame[image_col].map(image_id_with_extension)
     return frame.reset_index(drop=True)
 
 
-def validate_split_contract(splits: dict[str, Any], expected_version: str | None = "splits_v1") -> None:
+def validate_split_contract(
+    splits: dict[str, Any], expected_version: str | None = "splits_v1"
+) -> None:
     if expected_version is not None and splits.get("version") != expected_version:
         raise ValueError(f"Unsupported split version: {splits.get('version')!r}")
     if not isinstance(splits.get("folds"), list) or not splits["folds"]:

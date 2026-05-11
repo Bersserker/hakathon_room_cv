@@ -99,11 +99,15 @@ make validate-submission # проверить submission по test_df и class m
 
 ## Class schema, inference и submission
 
-Подтверждённая схема классов: 20 классов `0..19`. Финальный CSV должен иметь ровно две колонки:
+Фактическая схема данных: **20 классов `0..19`**. Это подтверждено `train_df.csv` и `room_type_sample_submission.csv`. Важно: класс `18` — `не могу дать ответ / не ясно`, класс `19` — `комната без мебели`.
+
+Финальный CSV должен иметь ровно две колонки:
 
 ```csv
 image_id_ext,Predicted
 ```
+
+Текущий release-конфиг `configs/release/rc1.yaml` использует checkpoint `artifacts/checkpoints/release_cv03_balanced_sampler_trainval_90_10.ckpt`.
 
 Артефакты схемы и аудита:
 
@@ -131,7 +135,7 @@ uv run python -m src.inference.validate_submission \
 uv run python demo/app.py --config configs/release/rc1.yaml
 ```
 
-Подробнее про MLflow: [`docs/mlflow.md`](docs/mlflow.md).
+Подробнее про MLflow: [`docs/ML_FLOW.md`](docs/ML_FLOW.md).
 
 ## Запуск ноутбуков
 
@@ -288,3 +292,4 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml run --rm notebook
 - `artifacts/` — веса моделей, чекпоинты и логи обучения.
 - `reports/` — графики, отчёты и итоговые визуализации.
 - `tests/` — тесты для проверки ключевой логики проекта.
+- `docs/` — документации по проекту.
